@@ -106,7 +106,7 @@ isNonEmpty() {
 # --- END: Functions
 
 # Output version number and exit, if requested. Note that the `ver="..."` statement is automatically updated by `make version VER=<newVer>` - DO keep the 'v' suffix in the variable _definition_.
-[[ $1 == '--version' ]] && { declare ver="v0.0.1"; echo "$kTHIS_NAME version ${ver#v}"; exit 0; }
+[[ $1 == '--version' ]] && { declare ver="v0.0.2"; echo "$kTHIS_NAME version ${ver#v}"; exit 0; }
 
 # Command-line help.
 # !! -h is a valid option for ls that we normally must pass through, 
@@ -512,7 +512,7 @@ if (( ${#files[@]} > 0 )); then
   # The `command ` prefix ensures that any shell function or alias named `ls` is bypassed.
   # NOTE: We ALWAYS prepend -d, because we never want to descend into directories to avoid confusion over what is being filtered.
   # EXECUTION ENDS HERE.
-  exec command ls -d "${optsForLs[@]}" "${files[@]}"
+  exec ls -d "${optsForLs[@]}" "${files[@]}"
 else
   : # no matches; do nothing and exit successfully, as `ls` would in an empty dir.
 fi
