@@ -7,7 +7,7 @@
 
 - [fls &mdash; Introduction](#fls-&mdash-introduction)
 - [Installation](#installation)
-  - [From the [npm registry](https://www.npmjs.com/package/fls)](#from-the-npm-registryhttpswwwnpmjscompackagefls)
+  - [From the npm registry](#from-the-npm-registry)
   - [Manual installation](#manual-installation)
 - [Examples](#examples)
 - [Usage](#usage)
@@ -42,9 +42,9 @@ See [examples](#examples) or complete [usage information](#usage).
 * When installing from the **npm registry**: **Linux** and **OSX**
 * When installing **manually**: any **Unix-like** platform with **Bash** 
 
-## From the [npm registry](https://www.npmjs.com/package/fls)
+## From the npm registry
 
-With [Node.js](http://nodejs.org/) or [io.js](https://iojs.org/) installed, install as follows:
+With [Node.js](http://nodejs.org/) or [io.js](https://iojs.org/) installed, install [the package](https://www.npmjs.com/package/fls) as follows:
 
     [sudo] npm install fls -g
 
@@ -236,6 +236,10 @@ This project gratefully depends on the following open-source components, accordi
 Versioning complies with [semantic versioning (semver)](http://semver.org/).
 
 <!-- NOTE: An entry template for a new version is automatically added each time `make version` is called. Fill in changes afterwards. -->
+
+* **v0.1.0** (2015-06-03):
+  * [dev] Version bumped to 0.1.0 to better reflect the level of maturity.
+  * [doc] TOC problem fixed.
 
 * **v0.0.2** (2015-06-03):
   * [fix] Simple, but fundamental bug on Linux fixed (my apologies): no longer tries to use `command` with `exec`, which fails on Linux, because `command` is only a builtin (and was never needed to begin with).
