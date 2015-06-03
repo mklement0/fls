@@ -20,9 +20,9 @@
 
 # fls &mdash; Introduction
 
-A **type-filtering wrapper** for the standard **`ls`** Unix utility (<u>f</u>iltering <u>ls</u>).
+`fls` &mdash; **_f_**iltering **_ls_** &mdash; is a **type-filtering wrapper** for the standard **`ls`** Unix utility.
 
-The general idea is to **enhance `ls` with the ability to filter items by filesystem** type by specifying a filter expression as the first argument.  
+The general idea is to **enhance `ls` with the ability to filter items by filesystem type** by specifying a filter expression as the first argument.  
 A filter expression is composed of one or more optionally negatable [Bash's file-test operators](http://www.gnu.org/software/bash/manual/html_node/Bash-Conditional-Expressions.html), such as `f` for files, `d` for directories, and `L` for symlinks.
 
 Behind the scenes `ls` is ultimately invoked, so all of its options are supported.  
@@ -240,6 +240,9 @@ This project gratefully depends on the following open-source components, accordi
 Versioning complies with [semantic versioning (semver)](http://semver.org/).
 
 <!-- NOTE: An entry template for a new version is automatically added each time `make version` is called. Fill in changes afterwards. -->
+
+* **[v0.1.2](https://github.com/mklement0/fls/compare/v0.1.1...v0.1.2)** (2015-06-03):
+  * [doc] Read-me improved.
 
 * **[v0.1.1](https://github.com/mklement0/fls/compare/v0.1.0...v0.1.1)** (2015-06-03):
   * [doc] Read-me improved.
