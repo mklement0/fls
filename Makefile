@@ -53,42 +53,67 @@ push: _need-clean-ws-or-no-untracked-files
 	 echo "-- Pushed."
 
 
-# If VER is *not* specified: reports the current version number - both by package.json and as defined by the latest git tag.
-# If VER *is* specified: sets the version number in source files and package.json; increments from the latest package.json version number.
-#  An explicitly specified version number must be *higher* than the current one; pass variable FORCE=1 to override this in exceptional situations.
+# Reports the current version number - both from package.json and as defined by the latest git tag
+# Implementation note: simply uses 'version' as a prerequisite, which queries $(MAKECMDGOALS) to adjust its behavior based on the caller.
+.PHONY: verinfo
+verinfo: version
+
+# Increments the package's version number:
+# Unless called via 'make verinfo', the workspace must be clean or at least have no untracked files.
+# If VER is *not* specified in the environment:
+#   Reports the current version number - both from package.json and as defined by the latest git tag.
+#   If 'make version' was called directly, then prompts to change the version number.
+#   If called via 'make release', only prompts to change the version number if the git tag version number is the same as the package's.
+#   VER is set to the value entered and processing continues below.
+# If VER *is* specified or continuing from above:
+#   Validates the new version number:
+#      If an increment specifier was given, increments from the latest package.json version number (as the version numbers stored in source files are assumed to be in sync with package.json).
+#      	 Implementation note: semver, as of v4.3.6, does not validate increment specifiers and simply defaults to 'patch' in case of an valid specifier; thus, we roll our own validation here.
+#      An explicitly specified version number must be *higher* than the current one; pass variable FORCE=1 to override this in exceptional situations.
+#   Updates the version number in package.json and in source files in ./bin and ./lib.
 .PHONY: version
 version:
-ifndef VER
-	@if [[ '$(MAKECMDGOALS)' == 'version' ]]; then \
-	   printf 'Current version:\n\tv%s (from package.json)\n\t%s (from git tag)\n' `json -f package.json version` `git describe --abbrev=0 --match 'v[0-9]*.[0-9]*.[0-9]*' 2>/dev/null || echo '(none)'`; \
-	   printf 'Note:\tTo increment the version number or make a release, run:\n\t\tmake version VER=<new-version>\n\t\tmake release [VER=<new-version>]\n\twhere <new-version> is either an increment specifier (patch, minor, major,\n\tprepatch, preminor, premajor, prerelease), or an explicit <major>.<minor>.<patch> version number.\n\tIf the package.json version number is already ahead of the latest Git version tag,\n\tspecifying VER=<new-version> with `make release` is optional.\n'; \
-   else \
-   	 printf '===  RELEASING:\n\t%s -> **v%s** \n===\n' `git describe --abbrev=0 --match 'v[0-9]*.[0-9]*.[0-9]*' 2>/dev/null || echo '(none)'` `json -f package.json version`; \
-   	 read -p 'Proceed (y/N)?: ' -re response && [[ "$$response" =~ [yY] ]] || { echo 'Aborted.' >&2; exit 2; }; \
-   fi 
-else
-	 @$(MAKE) -f $(lastword $(MAKEFILE_LIST)) _need-clean-ws-or-no-untracked-files || exit; \
-	  oldVer=`json -f package.json version` || exit; \
-	  newVer=`echo "$(VER)" | sed 's/^v//'`; \
-	  if printf "$$newVer" | grep -q '^[0-9]'; then \
-	    semver "$$newVer" >/dev/null || { echo 'Invalid semver version number specified: $(VER)' >&2; exit 2; }; \
-	    [[ "$(FORCE)" != '1' ]] && { semver -r "> $$oldVer" "$$newVer" >/dev/null || { echo "Invalid version number specified: $(VER) - must be HIGHER than $$oldVer." >&2; exit 2; }; } \
-	  else \
-	    newVer=`semver -i "$$newVer" "$$oldVer"` || { echo 'Invalid version-increment specifier: $(VER)' >&2; exit 2; } \
+	@[[ '$(MAKECMDGOALS)' == *verinfo* ]] && infoOnly=1 || infoOnly=0; \
+	 gitTagVer=`git describe --abbrev=0 --match 'v[0-9]*.[0-9]*.[0-9]*' 2>/dev/null || echo '(none)'` || exit; gitTagVer=$${gitTagVer#v}; \
+	 pkgVer=`json -f package.json version` || exit; \
+	 if [[ -z $$VER ]]; then \
+	  printf 'CURRENT version:\n\t%s (package.json)\n\t%s (git tag)\n' "$$pkgVer" "$$gitTagVer"; \
+	  (( infoOnly )) && exit; \
+	  semver -r "> $$gitTagVer" "$$pkgVer" >/dev/null || [[ $$gitTagVer == '(none)' && $$pkgVer != '0.0.0' ]] && { alreadyBumped=1 || alreadyBumped=0; }; \
+	  if [[ '$(MAKECMDGOALS)' == 'release' && $$alreadyBumped -eq 1 ]]; then \
+	    printf '===  RELEASING:\n\t%s -> **%s** \n===\n' "$$gitTagVer" "$$pkgVer"; \
+	    read -p '(Y)es or (c)hange (y/c/N)?: ' -re response && [[ "$$response" == [yYcC] ]] || { echo 'Aborted.' >&2; exit 2; }; \
+	    [[ $$response =~ [yY] ]] && exit 0; \
+	    alreadyBumped=0; \
 	  fi; \
-	  printf "=== About to BUMP VERSION:\n\t$$oldVer -> **$$newVer**\n===\nProceed (y/N)?: " && read -re response && [[ "$$response" =~ [yY] ]] || { echo 'Aborted.' >&2; exit 2; };  \
-	  for dir in ./bin ./lib; do [[ -d $$dir ]] && { replace --quiet --recursive "v$${oldVer//./\\.}" "v$${newVer}" "$$dir" || exit; }; done; \
-	  [[ `json -f package.json version` == $$newVer ]] || { npm version $$newVer --no-git-tag-version >/dev/null && printf $$'\e[0;33m%s\e[0m\n' 'package.json' || exit; }; \
-	  fgrep -q "v$$newVer" CHANGELOG.md || { { sed -n '1,/^<!--/p' CHANGELOG.md && printf %s $$'\n* **v'"$$newVer"$$'** ('"`date +'%Y-%m-%d'`"$$'):\n  * ???\n' && sed -n '1,/^<!--/d; p' CHANGELOG.md; } > CHANGELOG.tmp.md && mv CHANGELOG.tmp.md CHANGELOG.md; }; \
-	  git add --update . || exit; \
-	  printf -- "-- Version bumped to v$$newVer in source files and package.json (only just-now updated files were printed above, if any).\n   Describe changes in CHANGELOG.md ('make release' will prompt for it).\n   To update the read-me file, run 'make update-readme' (also happens during 'make release').\n"
-endif	
+	  if [[ '$(MAKECMDGOALS)' == 'version' || $$alreadyBumped -eq 0 ]]; then \
+	    echo "==="; \
+	    echo "Enter new version number in full or as one of: 'patch', 'minor', 'major', optionally prefixed with 'pre'."; \
+	    echo "(Alternatively, pass a value from the command line with 'VER=<new-ver>'.)"; \
+	    echo "==="; \
+	    read -p "NEW VERSION number (just Enter to abort)?: " -re VER && { [[ -z $$VER ]] && echo 'Aborted.' >&2 && exit 2; }; \
+	  fi; \
+	fi; \
+  oldVer=$$pkgVer; \
+  newVer=$${VER#v}; \
+  if printf "$$newVer" | grep -q '^[0-9]'; then \
+    semver "$$newVer" >/dev/null || { echo "Invalid semver version number specified: $$VER" >&2; exit 2; }; \
+    [[ "$(FORCE)" != '1' ]] && { semver -r "> $$oldVer" "$$newVer" >/dev/null || { echo "Invalid version number specified: $$VER - must be HIGHER than $$oldVer. To force this change, use FORCE=1 on the command line." >&2; exit 2; }; } \
+  else \
+    [[ $$newVer =~ ^(patch|minor|major|prepatch|preminor|premajor|prerelease)$$ ]] && newVer=`semver -i "$$newVer" "$$oldVer"` || { echo "Invalid version-increment specifier: $$VER" >&2; exit 2; } \
+  fi; \
+  printf "=== About to BUMP VERSION:\n\t$$oldVer -> **$$newVer**\n===\nProceed (y/N)?: " && read -re response && [[ "$$response" = [yY] ]] || { echo 'Aborted.' >&2; exit 2; };  \
+  for dir in ./bin ./lib; do [[ -d $$dir ]] && { replace --quiet --recursive "v$${oldVer//./\\.}" "v$${newVer}" "$$dir" || exit; }; done; \
+  [[ `json -f package.json version` == "$$newVer" ]] || { npm version $$newVer --no-git-tag-version >/dev/null && printf $$'\e[0;33m%s\e[0m\n' 'package.json' || exit; }; \
+  [[ $$gitTagVer == '(none)' ]] && newVerMdSnippet="**v$$newVer**" || newVerMdSnippet="**[v$$newVer](`json -f package.json repository.url | sed 's/.git$$//'`/compare/v$$gitTagVer...v$$newVer)**"; \
+  fgrep -q "v$$newVer" CHANGELOG.md || { { sed -n '1,/^<!--/p' CHANGELOG.md && printf %s $$'\n* '"$$newVerMdSnippet"$$' ('"`date +'%Y-%m-%d'`"$$'):\n  * ???\n' && sed -n '1,/^<!--/d; p' CHANGELOG.md; } > CHANGELOG.tmp.md && mv CHANGELOG.tmp.md CHANGELOG.md; }; \
+  printf -- "-- Version bumped to v$$newVer in source files and package.json (only just-now updated files were printed above, if any).\n   Describe changes in CHANGELOG.md ('make release' will prompt for it).\n   To update the read-me file, run 'make update-readme' (also happens during 'make release').\n"
 
 # make release [VER=<newVerSpec>] [NOTEST=1]
 # Increments the version number, runs tests, then commits and tags, pushes to origin, prompts to publish to the npm-registry; NOTEST=1 skips tests.
 # VER=<newVerSpec> is mandatory, unless the version number in package.json is ahead of the latest Git version tag.
 .PHONY: release
-release: _need-ver _need-origin _need-npm-credentials _need-master-branch version test
+release: _need-origin _need-npm-credentials _need-master-branch _need-clean-ws-or-no-untracked-files version test
 	@newVer=`json -f package.json version` || exit; \
 	 echo '-- Opening changelog...'; \
 	 $(EDITOR) CHANGELOG.md; \
@@ -235,16 +260,6 @@ _need-master-branch:
 _need-clean-ws-or-no-untracked-files:
 	@git add --update . || exit
 	@[[ -z $$(git status --porcelain | awk -F'\0' '$$2 != " " { print $$2 }') ]] || { echo "Workspace must either be clean or contain no untracked files; please add untracked files to the index first (e.g., \`git add .\`) or delete them." >&2; exit 2; }
-
-# Ensures that the either an explicit new VER (version) number was specified or that is implied by 'package.json' already containing
-# a higher version number than the highest Git version tag.
-.PHONY: _need-ver
-_need-ver:
-ifndef VER
-ifneq ($(FORCE),1)
-		@[[ 'v'`json -f package.json version` != `git describe --abbrev=0 --match 'v[0-9]*.[0-9]*.[0-9]*' 2>/dev/null` ]] || { printf 'ERROR: Since the version number in 'package.json' is the same as the latest Git version tag, Variable 'VER' must be defined to specify the NEW version number.\nUse `make version` for more information and to see the current version numbers, or pass FORCE=1 to force the operation nonetheless.\n' >&2; exit 1; }
-endif	
-endif
 
 # Ensure that a remote git repo named 'origin' is defined.
 .PHONY: _need-origin

@@ -2,7 +2,7 @@
   "name": "fls",
   "description": "A type-filtering wrapper for the standard ls Unix utility",
   "private": false,
-  "version": "0.1.0",
+  "version": "0.1.1",
   "os": [
     "darwin",
     "linux"
@@ -26,7 +26,8 @@
     "ls",
     "filter",
     "list",
-    "filesystem"
+    "filesystem",
+    "cli"
   ],
   "author": "Michael Klement <mklement0@gmail.com> (http://same2u.net)",
   "license": "MIT",

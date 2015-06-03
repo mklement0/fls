@@ -4,6 +4,10 @@ Versioning complies with [semantic versioning (semver)](http://semver.org/).
 
 <!-- NOTE: An entry template for a new version is automatically added each time `make version` is called. Fill in changes afterwards. -->
 
+* **[v0.1.1](https://github.com/mklement0/fls/compare/v0.1.0...v0.1.1)** (2015-06-03):
+  * [doc] Read-me improved.
+  * [dev] Makefile updated.
+
 * **v0.1.0** (2015-06-03):
   * [dev] Version bumped to 0.1.0 to better reflect the level of maturity.
   * [doc] TOC problem fixed.

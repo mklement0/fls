@@ -28,7 +28,11 @@ A filter expression is composed of one or more optionally negatable [Bash's file
 Behind the scenes `ls` is ultimately invoked, so all of its options are supported.  
 Specifying a filter is optional, so `fls` can generally be used in lieu of `ls`, with a few restrictions detailed in the [usage chapter](#usage).
 
-`fls` lends itself to creating aliases; for instance, the following alias lists all executable (`x`) files (`f`):
+The following example lists only subdirectories in the current directory, in long format:
+
+    fls d -l
+
+`fls` also lends itself to creating aliases; for instance, the following alias lists all executable (`x`) files (`f`):
 
 * `alias lsbin='fls fx'`
 
@@ -236,6 +240,10 @@ This project gratefully depends on the following open-source components, accordi
 Versioning complies with [semantic versioning (semver)](http://semver.org/).
 
 <!-- NOTE: An entry template for a new version is automatically added each time `make version` is called. Fill in changes afterwards. -->
+
+* **[v0.1.1](https://github.com/mklement0/fls/compare/v0.1.0...v0.1.1)** (2015-06-03):
+  * [doc] Read-me improved.
+  * [dev] Makefile updated.
 
 * **v0.1.0** (2015-06-03):
   * [dev] Version bumped to 0.1.0 to better reflect the level of maturity.
