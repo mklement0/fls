@@ -1,0 +1,518 @@
+#!/usr/bin/env bash
+
+declare kTHIS_NAME=$(basename "$BASH_SOURCE")
+
+unset CDPATH  # to prevent unpredictable `cd` behavior
+
+# --- BEGIN: Functions
+
+# Helper function for exiting with error message due to runtime error.
+#   die [errMsg [exitCode]]
+# Default error message states context and indicates that execution is aborted. Default exit code is 1.
+# Prefix for context is always prepended.
+# Note: An error message is *always* printed; if you just want to exit with a specific code silently, use `exit n` directly.
+die() {
+  echo "$kTHIS_NAME: ERROR: ${1:-"ABORTING due to unexpected error."}" 1>&2
+  exit ${2:-1} # Note: If the argument is non-numeric, the shell prints a warning and uses exit code 255.
+}
+
+# Helper function for exiting with error message due to invalid arguments.
+#   dieSyntax [errMsg]
+# Default error message is provided, as is prefix and suffix; exit code is always 2.
+dieSyntax() {
+  echo "$kTHIS_NAME: ARGUMENT ERROR: ${1:-"Invalid argument(s) specified."} Use --help for help." 1>&2
+  exit 2
+}
+
+# SYNOPSIS
+#     indexOf needle "${haystack[@]}"
+# *Via stdout*, returns the zero-based index of a string element in an array of strings or -1, if not found.
+# The *return code* indicates if the element was found or not.
+# EXAMPLE
+#   a=('one' 'two' 'three')
+#   ndx=$(indexOf 'two' "${a[@]}") # -> $ndx is now 1
+indexOf() {
+  local e ndx=-1
+  for e in "${@:2}"; do (( ++ndx )); [[ "$e" == "$1" ]] && echo $ndx && return 0; done
+  echo '-1'; return 1
+}
+
+# SYNOPSIS
+#   isIn needle "${haystack[@]}"
+# Indicates via *exit code only* if string NEEDLE is contained in array HAYSTACK.
+# EXAMPLE
+#  a=('one' 'two' 'three')
+#  isIn 'two' "${a[@]}" && echo "contained"
+isIn() { indexOf "$@" >/dev/null; }
+
+# SYNOPSIS
+#   intersection list1 list2 [sep [outsep]]
+# Returns the - sorted - intersection of tokens in 2 input lists.
+# SEP is the separator used to separate tokens in the input list, OUTSEP the separator to use when printg the results.
+# SEP defaults to a newline, and OUTSEP to the value of SEP.
+# If SEP is explicitly given as the empty string, the input lists are broken into individual *characters*.
+# Note that any nonempty result will have a trailing instance of OUTSEP.
+# CAVEATS:
+#   - NOT LOCALE-AWARE on OSX: both awk and sort do not deal properly with UTF-8 encoded non-ASCII characters.
+#   - This function is expensive, because external utilities are called multiple times: to tokenize the input, sort it, and to compare.
+# EXAMPLES:
+#   intersection hello world '' # -> 'lo' (the sorted list of chars. that 'hello' and 'world' have in common)
+intersection() {
+  local list1=$1 list2=$2 sep=${3-$'\n'} outsep=${4:-$sep}
+  [[ $sep == $'\n' ]] && sep='\n'
+  [[ $outsep == $'\n' ]] && outsep='\n'
+  comm -12 <(awk 'BEGIN { FS="'"$sep"'" } { for(i=1;i<=NF;++i) print $i }' <<<"$list1" | sort) <(awk 'BEGIN { FS="'$sep'" } { for(i=1;i<=NF;++i) print $i }' <<<"$list2" | sort) | awk -v ORS="$outsep" '1'
+}
+
+# SYNOPIS
+#   isEmpty dirOrFile
+# DESCRIPTION
+#   Indicates if the specified file or directory is fully empty (exit code 0) or not (exit code 1).
+#   Note that if the argument is a symlink, the empty test invariably applies to the link's TARGET.
+#   The file or directory must exist, otherwise an error message is printed and the exit code is set to 3.
+#   - For files, empty means: a size of 0 bytes.
+#   - For directories, empty means: it must not contain any files or subdirectories, whether hidden or not.
+# EXAMPLE
+#  isEmpty ~/Applications && echo "~/Applications is completely empty."
+isEmpty() {
+  if [[ -d $1 ]]; then
+    (shopt -s nullglob dotglob; for f in "${1%/}"/*; do exit 1; done; exit 0)
+  elif [[ -f $1 ]]; then
+    [[ ! -s $1 ]]
+  else
+    echo "$FUNCNAME: $1: No such file or directory" >&2
+    return 3
+  fi
+}
+
+# SYNOPIS
+#   isNonEmpty dirOrFile
+# DESCRIPTION
+#   Inverse of isEmpty(); see there.
+isNonEmpty() {
+  isEmpty "$@"
+  case $? in
+    0)
+      return 1
+      ;;
+    1)
+      return 0
+      ;;
+    *)
+      return  # error must have occurred: pass exit code through
+  esac
+}
+
+# --- END: Functions
+
+# Output version number and exit, if requested. Note that the `ver="..."` statement is automatically updated by `make version VER=<newVer>` - DO keep the 'v' suffix in the variable _definition_.
+[[ $1 == '--version' ]] && { declare ver="v0.0.1"; echo "$kTHIS_NAME version ${ver#v}"; exit 0; }
+
+# Command-line help.
+# !! -h is a valid option for ls that we normally must pass through, 
+# !! so we accept it as an alias for --help
+# !! ONLY if it's the only argument; we can do this, because -h by itself
+# !! makes no sense in ls (it must be combined with -l).
+if [[ $1 == '--help' || ($1 == '-h' && $# -eq 1) ]]; then
+  cat <<EOF
+SYNOPSIS
+  $kTHIS_NAME [filters] [options-for-ls] [dir]
+  $kTHIS_NAME [filters] [options-for-ls] fileOrDir ...
+
+DESCRIPTION
+  A type-filtering wrapper for the ls utility.
+
+  NOTE: For simplicity, this utility is limited to filtering items from a 
+  *single directory*:
+   - Either by specifying a single directory (the current one by default)
+     whose *content* to filter.
+   - Or, as the result of globbing on the command line, by specifying multiple
+     items *all from the same parent directory* to *filter themselves*.
+  Also, to allow use of a single utility in both filtering and non-filtering
+  scenarios, specifying a filter is *optional* and not specifying one makes
+  $kTHIS_NAME behave like ls, within the constraints noted above.
+
+  options-for-ls
+    Options to pass through to ls, such as -l to list in long format.
+    Note that *option -d is implictly always used*; that is, subdirectories
+    are always filtered and printed as themselves, and their content is 
+    neither examined nor printed.
+
+  dir
+    A *single* directory whose items (files and subdirectories) to filter;
+    defaults to . (the current directory).
+  
+  fileOrDir ...
+    A list of files and/or subdirectories *from a single parent directory*
+    to which to apply filtering *directly*.
+    Typically, this list will come from a pathname expansion (globbing)
+    on the command line.
+    CAVEAT: If a glob happens to expand to a *single directory*, this utility
+    will instead target that directory's *content*, as if a single directory
+    had been explicitly specified - it cannot tell the difference.
+
+  filters
+    A string of one or more filter characters, optionally grouped by negation.
+    AND logic is implicitly applied to multiple filters; i.e., matching items
+    must meet ALL criteria.
+    A ^ preceding one or more characters negates their logic; Only one ^
+    is allowed.
+    Using just a - (hyphen) explicitly indicates that *no* filtering should
+    be applied at all.
+
+    Note that the filters argument, if specified, must always come *first*,
+    even before any options for ls. This reduces ambiguity and facilitates
+    definition of aliases (see below).
+    To avoid ambiguity when no options are specified at all, use - as the
+    first argument.
+
+    Filter characters correspond to *Bash's file-test operators*; common ones
+    are listed below; for the full list, see CONDITIONAL EXPRESSIONS in
+    \`man bash\`.
+
+    f, d
+      Matches a file / directory; note that for symlinks the type of their
+      *target* is matched.
+    
+    x
+      Matches an executable file or searchable directory; add f or d to
+      distinguish.
+
+    L or h
+      Matches a symlink. Add f or d to distinguish between symlinks to
+      files and those to directories.
+
+    s
+      Matches a nonempty file (nonzero-byte file) or nonempty directory
+      Add f or d to distinguish. Note: bash's -s test operator only
+      operates meaningfully on files, not directories, but this utility
+      extends the "nonempty" semantics to refer to directories that contain
+      at least one item (whether hidden or not).
+
+    r, w
+      Matches a file or directory that the current user can read, write.
+
+  To filter *hidden* files or directories, use glob .* - this will return only
+  the hidden items, to which you can then apply further filtering; e.g.,
+    $kTHIS_NAME f .*  # show hidden files
+    $kTHIS_NAME d .*  # show hidden subdirs.
+
+  Since remembering the filter characters can be a challenge, you can define
+  *aliases*; e.g.:
+    alias lsd='$kTHIS_NAME d'     # list directories
+    alias lsexe='$kTHIS_NAME xf'  # list executables
+    alias lsln='$kTHIS_NAME L'    # list symlinks
+
+  The exit code is 0, as long as all file operands exist and can be examined.
+  Thus, a filter that matches nothing simply produces no output, without 
+  indicating an error condition.
+
+EXAMPLES
+    # List all files in the current dir.
+  $kTHIS_NAME f
+    # List all files in the current dir in long format, including hidden ones.
+  $kTHIS_NAME f -lA
+    # List all hidden files in the current dir.
+  $kTHIS_NAME f .*
+    # List all subdirs. of /    
+  $kTHIS_NAME d /
+    # List all symlinks to files in the current dir.
+  $kTHIS_NAME Lf
+    # List all executable files matching c* in /usr/local/bin
+  $kTHIS_NAME xf /usr/local/bin/c*
+    # List all empty (zero-byte) files in the current dir.
+  $kTHIS_NAME f^s
+    # List all empty directories in the current dir.
+  $kTHIS_NAME d^s
+    # Use without filters:
+  $kTHIS_NAME        # same as ls
+  $kTHIS_NAME -lt ~  # same as ls -lt ~
+EOF
+    exit 0
+fi
+
+# NOTE: The special value indicates that NO filtering is to be used.
+kFILTER_NONE='-'
+
+# NOTE: Note that the filter expression, if specified, must be the VERY FIRST ARGUMENT,
+#       even before the options to pass through to ls.
+#       While nonstandard, this allows defining aliases such as `alias lsexe='fls xf' and reduces ambiguity.
+declare filterExpr= firstFileOperand=
+case $1 in
+  [^-]*|$kFILTER_NONE|'') # A non-option - possibly, but not necessarily, a filter expression
+    case $1 in
+      */*|.) # If the putative filter contains '/' or is '.' - neither of which are valid filter chars. - we definitively assume that it is a file operand instead.
+        firstFileOperand=$1
+        ;;
+      $kFILTER_NONE|'') # No filter is to be applied (in addition to $kFILTER_NONE we also accept an explicitly passed empty string).
+        : # We don't assign to $filterExpr to imply unfiltered output and let shift consume the argument below.
+        ;;
+      *)
+        # START with the assumption that this is a filter - but it may turn out not to be; see below.
+        filterExpr=$1
+        ;;
+    esac
+    shift # Consume the 1st argument so that option parsing below works.
+    ;;
+esac
+
+# Parse OPTIONS.
+# The options will be passed through to `ls`, however, we need to determine 
+# if the option to include hidden entries was specified (-a or -A), because 
+# we need to perform our internal globbing accordingly.
+declare -i includeHidden=0
+while getopts :aA opt; do [[ $opt == '?' ]] && continue; includeHidden=1; done
+
+# Determine if any options were specified.
+# Note that OPTIND is > 1 even if --, the end-of-options marker, was the only (pseudo-)option specified.
+declare -i optionsSpecified=0
+(( OPTIND > 1 )) && optionsSpecified=1
+
+# !! If the very first argument looks like a path and there were also options specified, abort, because, for consistency, the only
+# !! argument we allow before options is a filter.
+[[ $optionsSpecified -eq 1 && -n $firstFileOperand ]] && dieSyntax "Only a filter expression may precede options on the command line."
+
+# Save all options for passing them through to ls later.
+# Note: This includes a terminating '--', if it was specified.
+declare -a optsForLs=( "${@:1:OPTIND-1}" )
+
+# Skip options
+shift $((OPTIND - 1)) 
+
+# Restore the 1st file operand as an argument, if necessary.
+[[ -n $firstFileOperand ]] && set -- "$firstFileOperand" "$@"
+
+
+# PARSE THE FILTER EXPRESSION, if any.
+if [[ -n $filterExpr ]]; then
+
+  declare errMsg=
+  while :; do  # dummy loop for easily breaking out of the flow below
+    # Validate the filter-operator characters.
+    # The list of file-test operators as of bash 4.3 (from man bash):
+    # (-t was removed, because it relates to terminals, not files
+    #  -a and -e (synonyms) were removed, because they relate only test the *existence* of *any type* of file, so they don't serve to *filter by type*)
+           # -b ... block special file
+           # -c ... character special file
+           # -d ... dir or symlink to file
+           # -f ... regular file or symlink to regular file
+           # -g ... set-group-id permissions bit set
+           # -h ... symbolic link (same as -L)
+           # -k ... sticky permissions bit set
+           # -p ... named pipe (FIFO).
+           # -r ... readable by current user
+           # -s ... file (not dir) with nonzero size
+           # -u ... set-user-id permissions bit set.
+           # -w ... writable by current user
+           # -x ... executable by current user
+           # -G ... owned by the effective group ID
+           # -L ... symbolic link (same as -h)
+           # -N ... file has been modified since it was last read
+           # -O ... owned by the effective user ID
+           # -S ... a socket.
+    kFILE_TEST_OPERATORS=( b c d f g h k p r s u w x G L N O S )
+    # Of these, the following can be combined with 'f' or 'd' to distinguish between files and directories:
+    # Note that -s  (nonzero size) only has meaning for files, because even empty directories have nonzero size;
+    # we extend the nonempty semantics to directories with our own implementation.
+    kFILE_TEST_OPERATORS_FILE_VS_DIR_FILTERABLE=( g h k r s u w x G L N O )
+
+    # Split into positive and negative filters, if specified.
+    declare filterChars=${filterExpr//^/} posFilterChars= negFilterChars= 
+    if [[ "$filterExpr" == "$filterChars" ]]; then # no negation operator present -> only positive filters
+
+      posFilterChars=$filterExpr
+
+    else # negation operator present -> both positive and negative filters
+
+      (( ${#filterExpr} - ${#filterChars} == 1 )) || { errMsg='You may only specify the negation operator ^ once.'; break; }
+      # Split the filters into positives (pre-'^') and negatives (post-'^')
+      posFilterChars=${filterExpr%^*}
+      negFilterChars=${filterExpr#*^}
+      # Make sure that there's no overlap between the positive and the negative filters
+      # which would invariably match nothing; e.g., "d^d"
+      if [[ -n $posFilterChars && -n $negFilterChars ]]; then
+        [[ -z $(intersection "$posFilterChars" "$negFilterChars" "") ]] || { errMsg='A filter cannot be its own negation.'; break; }
+      fi
+
+    fi
+
+    # See if 's', the nonempty files/dirs filter was specified: 
+    # Note: As a bash file-test operator, -s (test if nonempty) only meaningfully operates on
+    #       *files*, not directories.
+    #      However, in our case we want the ability to filter by empty *directories*
+    #      too, so we must treat this case specially, via a custom function.
+    declare -i haveEmptyItemsFilter=0 haveNonEmptyItemsFilter=0
+    [[ ${posFilterChars//s/} != "$posFilterChars" ]] && { haveNonEmptyItemsFilter=1; posFilterChars=${posFilterChars//s/}; }
+    [[ ${negFilterChars//s/} != "$negFilterChars" ]] && { haveEmptyItemsFilter=1; negFilterChars=${negFilterChars//s/}; }
+
+    # pv haveEmptyItemsFilter haveNonEmptyItemsFilter posFilterChars negFilterChars
+
+    # Make sure that ANY filter was specified.
+    [[ -z $posFilterChars && -z $negFilterChars ]] && (( haveEmptyItemsFilter == 0 && haveNonEmptyItemsFilter == 0 )) && { errMsg='Missing filters; you cannot use ^ by itself.'; break; }
+
+    # Read the operator chars. into arrays.
+    declare -a posFileTestOps=() negFileTestOps=()
+    [[ -n $posFilterChars ]] && IFS=$'\n' read -d '' -ra posFileTestOps <<<"$(awk 'BEGIN { FS="" } { for(i=1;i<=NF;++i) print $i  }' <<<"$posFilterChars")"
+    [[ -n $negFilterChars ]] && IFS=$'\n' read -d '' -ra negFileTestOps <<<"$(awk 'BEGIN { FS="" } { for(i=1;i<=NF;++i) print $i  }' <<<"$negFilterChars")"
+
+    # See if a files-only or directoy-only filter was (also) specified.
+    declare -i filesOnly dirsOnly nonFilesOnly nonDirsOnly
+    isIn 'f' "${posFileTestOps[@]}" && filesOnly=1 || filesOnly=0
+    isIn 'd' "${posFileTestOps[@]}" && dirsOnly=1 || dirsOnly=0
+    isIn 'f' "${negFileTestOps[@]}" && nonFilesOnly=1 || nonFilesOnly=0
+    isIn 'd' "${negFileTestOps[@]}" && nonDirsOnly=1 || nonDirsOnly=0
+    # Make sure that no attempt is made to filter by both files AND directories - these filters are mutually exclusive.
+    # Note: We still could have 'f' among the pos. filters, and 'd' among the negatives, and vice versa - while redundant, this does no harm.
+    (( (filesOnly && dirsOnly) || (nonFilesOnly && nonDirsOnly) )) && { errMsg='Please specify EITHER "f" OR "d"; specify neither to match files AND directories.'; break; }
+
+    # Make sure that no unknown and no incompatible filters were specified.
+    allFileTestOps=( "${posFileTestOps[@]}" "${negFileTestOps[@]}" )
+    for char in "${allFileTestOps[@]}"; do
+      isIn "$char" "${kFILE_TEST_OPERATORS[@]}" || { errMsg="Unknown or unsupported file-test operator: '$char'"; break; }
+      if (( filesOnly || dirsOnly || nonFilesOnly || nonDirsOnly )); then
+        [[ $char == 'f' || $char == 'd' ]] && continue
+        # If a files-only or directories-only filter was given, make sure that it makes sense in combination
+        # with the other filters.
+        isIn "$char" "${kFILE_TEST_OPERATORS_FILE_VS_DIR_FILTERABLE[@]}" || { errMsg="It is pointless to combine 'f' or 'd' with '$char'."; break; }
+      fi
+    done
+    break # exit the dummy loop
+  done  # dummy loop
+
+  if [[ -n $errMsg ]]; then # INVALID filter
+
+    if [[ $optionsSpecified -eq 0 && -e $filterExpr ]]; then
+      # !! If the filter wasn't specified unambiguously as such - as the 1st argument *before options* -
+      # !! and it happens to be an existing filesystem item, we reinterpret the value as a file operand
+      # !! and assume that this means that no filter was specified.
+      # Restore the value as the first operand.
+      set -- "$filterExpr" "$@"
+      filterExpr=
+    else
+      # Report invalid filter and exit.
+      dieSyntax "$errMsg"$'\n  '"If you meant this argument to be a file or directory operand, the implication is that it does not exist."$'\n  '"Generally, specify $kFILTER_NONE as the first argument to explicitly indicate that no filtering should be applied."$'\n '
+    fi
+
+  else
+
+    if [[ $optionsSpecified -eq 0 && -e $filterExpr ]]; then
+      echo "WARNING: '$filterExpr' was treated as a filter expression, but there is also a filesystem item by that name in the current directory."$'\n'"         To target the latter, specify $kFILTER_NONE as the first argument." >&2
+    fi
+
+  fi
+
+fi # [[ -n $filterExpr ]]
+
+# DETERMINE CANDIDATE FILES - globbing
+# Configure globbing:
+  # Report no error on failure to match, and to return empty string instead.
+shopt -u failglob; shopt -s nullglob 
+  # Decide whether to include hidden files or not.
+(( includeHidden )) && shopt -s dotglob || shopt -u dotglob
+
+# Examine the operands, which must be filesystem items, namely:
+#  - EITHER: a SINGLE directory whose CONTENT is to be filtered
+#  - OR: a LIST of files or directories from a SINGLE PARENT DIRECTORY to be filtered THEMSELVES.
+# Gather all *candidate* files first, to be filtered later.
+candidateFiles=()
+if [[ $# -eq 0 || ($# -eq 1 && -d "$1") ]]; then # a single dir. or no file operands specified at all, implying the current dir.
+
+  if [[ -n $1 ]]; then
+    # Switch to dir. *before globbing* with just *, which
+    # we must do in order to obtain *filenames only*.
+    cd -- "$1" || die
+  fi
+
+  # Get all items in the dir by globbing (which will return filenames only).
+  candidateFiles=( * )
+
+else # *multiple* file operands given - typically the result of globbing on the command line - or, atypically, a single *file*
+
+  # In addition to ensuring that all operands must exist,
+  # WE MUST MAKE SURE THAT ALL OPERANDS ARE ITEMS FROM THE SAME PARENT DIRECTORY.
+  # Note that a true, robust determination accounting for variations in case
+  # non-normalized paths, ... would be non-trivial, but is overkill here,
+  # given that the most likely use case is that the list of operands passed
+  # is the result of automatically applied *globbing* by the shell on the
+  # command line.
+  # Thus, all we do here is to ensure that all operands have either no
+  # path prefix at all or the same one, literally.
+  # !! Note: We do NOT use `dirname` and `basename` in the LOOP - invoking them on 
+  # !! each of many files causes performance problems; shell expansions are used instead.
+
+  declare prevPathPrefix=$'\3'
+  for f; do # Loop over file operands  
+    [[ -e $f ]] || die "$f: No such file or directory"  # ensure existence
+    f=${f%/} # trim trailing '/'
+    filename=${f##*/}  # extract *mere filename*
+    pathPrefix=${f%$filename}
+    [[ $prevPathPrefix == $'\3' || "$prevPathPrefix" == "$pathPrefix" ]] || dieSyntax "If you specify multiple file operands, they must all have the same parent directory."
+    candidateFiles+=( "$filename" )  # Add the *mere filename* to the list of candidate files.
+    prevPathPrefix=$pathPrefix
+  done
+
+  # Switch to dir., since we'll be passing *mere filenames* to `ls` later.
+  # We simply use the first operand, given that we've verified above that all operands are from the same dir.
+  cd -- "$(dirname -- "$1")" || die
+
+fi
+
+# FILTER AND OUTPUT.
+if [[ -z $filterExpr ]]; then # NO filtering
+    
+    # We CANNOT just relay invocation to `ls` due to our differing behavior of:
+    #   - never descending into directories (that alone could easily be remedied with -d, however)
+    #   - only ever printing *mere filenames*
+    # Thus, we take the same path as with filtering, except that we simply pass ALL candidate files through.
+    files=( "${candidateFiles[@]}" )
+
+else  # apply filters
+
+    # Note: file-test operators stored in variables aren't recognized by bash,
+    #       so we must resort to `eval`. While `eval` should be avoided in general,
+    #       it's safe to use here, because we fully control the string passed to it.
+  posExpr=
+  negExpr=
+  # Positive filters: AND logic: CONjunction of operands.
+  for char in "${posFileTestOps[@]}"; do
+    posExpr+="${posExpr:+ && }-$char \$f"
+  done
+  # Negative filters: NEITHER / NOR logic: DISjunction of operands that is NEGACTED AS A WHOLE.
+  for char in "${negFileTestOps[@]}"; do
+    negExpr+="${negExpr:+ || }-$char \$f"
+  done
+
+  # Synthesize the entire conditional
+  filterConditional=
+  if [[ -n $posExpr && -n $negExpr ]]; then
+    filterConditional+="[[ $posExpr && ! ($negExpr) ]]"
+  elif [[ -n $posExpr ]]; then
+    filterConditional+="[[ $posExpr ]]"
+  elif [[ -n $negExpr ]]; then
+    filterConditional+="[[ ! ($negExpr) ]]"
+  fi
+
+  # Append the empty-items filter, if any.
+  (( haveEmptyItemsFilter )) && filterConditional+="${filterConditional:+ && }isEmpty \"\$f\""
+  (( haveNonEmptyItemsFilter )) && filterConditional+="${filterConditional:+ && }isNonEmpty \"\$f\""
+
+  # Loop over all items in the dir. and build an array comprising the subset 
+  # of items that match ALL the filters specified.
+  files=()
+  for f in "${candidateFiles[@]}"; do
+    eval "$filterConditional" && files+=( "$f" )
+  done
+
+fi
+
+# PRINT RESULTS.
+# Pass matched items, if any, to ls.
+if (( ${#files[@]} > 0 )); then
+  # Invoke `ls` with all items matched, passing all options through.
+  # The `command ` prefix ensures that any shell function or alias named `ls` is bypassed.
+  # NOTE: We ALWAYS prepend -d, because we never want to descend into directories to avoid confusion over what is being filtered.
+  # EXECUTION ENDS HERE.
+  exec command ls -d "${optsForLs[@]}" "${files[@]}"
+else
+  : # no matches; do nothing and exit successfully, as `ls` would in an empty dir.
+fi

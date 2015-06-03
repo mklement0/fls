@@ -1,0 +1,21 @@
+#!/usr/bin/env bash
+
+# ---
+# IMPORTANT: Use the following statement at the TOP OF EVERY TEST SCRIPT
+#            to ensure that this package's 'bin/' subfolder is added to the path so that
+#            this package's CLIs can be invoked by their mere filename in the rest
+#            of the script.
+# ---
+PATH=${PWD%%/test*}/bin:$PATH
+
+# Using a glob
+echo "Hidden items with glob:"
+diff <(fls ../.fixtures/testdir/.* | fgrep -vx $'.DS_Store\n..\n.') - <<'EOF'
+.zero
+EOF
+
+# Using -A (ignoring non-hidden matches).
+echo "Hidden items -A filtered:"
+diff <(fls -A ../.fixtures/testdir | fgrep -vx $'.DS_Store\n..\n.' | grep -E '^\.') - <<'EOF'
+.zero
+EOF

@@ -1,0 +1,21 @@
+#!/usr/bin/env bash
+
+# ---
+# IMPORTANT: Use the following statement at the TOP OF EVERY TEST SCRIPT
+#            to ensure that this package's 'bin/' subfolder is added to the path so that
+#            this package's CLIs can be invoked by their mere filename in the rest
+#            of the script.
+# ---
+PATH=${PWD%%/test*}/bin:$PATH
+
+# Matching non-directories should result in the same as matching files.
+echo "The set of non-directories matches the set of files:"
+diff <(fls ^d ../.fixtures/testdir) <(fls f ../.fixtures/testdir)
+
+# Two AND-ed negative filters: NEITHER a directory NOR a symlink
+echo "Items that are NOT a directory and NOT a symlink (i.e., neither a directory nor a symlink)"
+diff <(fls ^dL ../.fixtures/testdir) - <<'EOF'
+c
+one
+two (2)
+EOF

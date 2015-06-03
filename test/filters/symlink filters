@@ -1,0 +1,28 @@
+#!/usr/bin/env bash
+
+# ---
+# IMPORTANT: Use the following statement at the TOP OF EVERY TEST SCRIPT
+#            to ensure that this package's 'bin/' subfolder is added to the path so that
+#            this package's CLIs can be invoked by their mere filename in the rest
+#            of the script.
+# ---
+PATH=${PWD%%/test*}/bin:$PATH
+
+# Symlinks, whether to a file or dir.
+echo "Symlinks, whether to a file or dir:"
+diff <(fls L ../.fixtures/testdir) - <<EOF
+onel
+subdl
+EOF
+
+# Symlinks to *files*.
+echo "Symlinks to files:"
+diff <(fls Lf ../.fixtures/testdir) - <<EOF
+onel
+EOF
+
+# Symlinks to *dirs*.
+echo "Symlinks to dirs.:"
+diff <(fls Ld ../.fixtures/testdir) - <<EOF
+subdl
+EOF

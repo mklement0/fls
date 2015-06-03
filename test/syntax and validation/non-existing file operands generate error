@@ -1,0 +1,26 @@
+#!/usr/bin/env bash
+
+# ---
+# IMPORTANT: Use the following statement at the TOP OF EVERY TEST SCRIPT
+#            to ensure that this package's 'bin/' subfolder is added to the path so that
+#            this package's CLIs can be invoked by their mere filename in the rest
+#            of the script.
+# ---
+PATH=${PWD%%/test*}/bin:$PATH
+
+# None of these should succeed.
+
+echo "Non-existing implicit file operand:"
+fls nosuch && exit 1 ||
+
+echo "Non-existing 2nd file operand:"
+fls . other/nosuch && exit 1 || :
+
+echo "Non-existing implicit file operands:"
+fls /nosuch1 /nosuch2 && exit 1 || :
+
+echo "Non-existing explicit file operand:"
+fls - nosuch && exit 1 || :
+
+echo "Non-existing explicit file operands:"
+fls - /nosuch1 /nosuch2 && exit 1 || :

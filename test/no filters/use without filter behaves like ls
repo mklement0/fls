@@ -1,0 +1,22 @@
+#!/usr/bin/env bash
+
+# ---
+# IMPORTANT: Use the following statement at the TOP OF EVERY TEST SCRIPT
+#            to ensure that this package's 'bin/' subfolder is added to the path so that
+#            this package's CLIs can be invoked by their mere filename in the rest
+#            of the script.
+# ---
+PATH=${PWD%%/test*}/bin:$PATH
+
+echo "No filter by default:"
+diff <(fls ../.fixtures/testdir) <(\ls ../.fixtures/testdir)
+
+# Same, but with explicit no-filter operator.
+echo "No filter with explicit no-filter expression, '-':"
+diff <(fls - ../.fixtures/testdir) <(\ls ../.fixtures/testdir)
+
+# Multiple file operands.
+# Note: With multiple *paths* (not just filenames), fls' behavior differs from ls' in that it fls always outputs *filenames* only, whereas ls outputs paths (as specified) in this case.
+#       Therefore, we change to the target dir. first.
+echo "No filter with explicit no-filter expression, '-', and multiple file operands:"
+(cd ../.fixtures/testdir && diff <(fls - onel one) <(\ls onel one))

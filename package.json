@@ -1,0 +1,47 @@
+{
+  "name": "fls",
+  "description": "A type-filtering wrapper for the standard ls Unix utility",
+  "private": false,
+  "version": "0.0.1",
+  "os": [
+    "darwin",
+    "linux"
+  ],
+  "preferGlobal": true,
+  "bin": {
+    "fls": "bin/fls"
+  },
+  "homepage": "https://github.com/mklement0/fls",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/mklement0/fls.git"
+  },
+  "bugs": {
+    "url": "https://github.com/mklement0/fls/issues"
+  },
+  "scripts": {
+    "test": "make test"
+  },
+  "keywords": [
+    "ls",
+    "filter",
+    "list",
+    "filesystem"
+  ],
+  "author": "Michael Klement <mklement0@gmail.com> (http://same2u.net)",
+  "license": "MIT",
+  "net_same2u": {
+    "make_pkg": {
+      "tocOn": true,
+      "tocTitle": "**Contents**"
+    }
+  },
+  "devDependencies": {
+    "doctoc": "^0.13.0",
+    "json": "^9.0.3",
+    "replace": "^0.3.0",
+    "semver": "^4.2.0",
+    "tap": "^0.6.0",
+    "urchin": "^0.0.5"
+  }
+}

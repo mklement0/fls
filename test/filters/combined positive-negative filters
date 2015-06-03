@@ -1,0 +1,34 @@
+#!/usr/bin/env bash
+
+# ---
+# IMPORTANT: Use the following statement at the TOP OF EVERY TEST SCRIPT
+#            to ensure that this package's 'bin/' subfolder is added to the path so that
+#            this package's CLIs can be invoked by their mere filename in the rest
+#            of the script.
+# ---
+PATH=${PWD%%/test*}/bin:$PATH
+
+# Files (f) that are not (^) non-empty (s) (i.e., that *are* empty).
+echo "Files that are not nonempty (are empty):"
+diff <(fls f^s ../.fixtures/testdir) - <<'EOF'
+c
+two (2)
+EOF
+
+# Files (f) that are nonempty (s), but not (^) symlinks.
+echo "Files that are nonempty and not symlinks:"
+diff <(fls fs^L ../.fixtures/testdir) - <<'EOF'
+one
+EOF
+
+# Files or folders that are nonempty (s), but neither files (f) nor symlinks (L)
+echo "Items that are nonempty and neither files nor symlinks:"
+diff <(fls s^fL ../.fixtures/testdir) - <<'EOF'
+subd
+EOF
+
+# Files (f) that are readable(r) but neither (^) nonempty(s) nor writable(w) - in other words: both empty and non-writable.
+echo "Files that are redable and not nonempty (i.e., empty) and not writable:"
+diff <(fls fr^sw ../.fixtures/testdir) - <<'EOF'
+two (2)
+EOF
