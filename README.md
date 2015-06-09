@@ -1,4 +1,4 @@
-[![npm version](https://badge.fury.io/js/fls.svg)](http://badge.fury.io/js/fls)
+[![npm version](https://img.shields.io/npm/v/fls.svg)](https://npmjs.com/package/fls) [![license](https://img.shields.io/npm/l/fls.svg)](https://github.com/mklement0/fls/blob/master/LICENSE.md)
 
 <!-- START doctoc generated TOC please keep comment here to allow auto update -->
 <!-- DON'T EDIT THIS SECTION, INSTEAD RE-RUN doctoc TO UPDATE -->
@@ -20,7 +20,7 @@
 
 # fls &mdash; Introduction
 
-`fls` &mdash; **_f_**iltering **_ls_** &mdash; is a **type-filtering wrapper** for the standard **`ls`** Unix utility.
+`fls` &mdash; ***f***iltering ***ls*** &mdash; is a **type-filtering wrapper** for the standard **`ls`** Unix utility.
 
 The general idea is to **enhance `ls` with the ability to filter items by filesystem type** by specifying a filter expression as the first argument.  
 A filter expression is composed of **one or more optionally negatable filter characters based on [Bash's file-test operators](http://www.gnu.org/software/bash/manual/html_node/Bash-Conditional-Expressions.html)**, such as `f` for files, `d` for directories, and `L` for symlinks.
@@ -240,6 +240,10 @@ This project gratefully depends on the following open-source components, accordi
 Versioning complies with [semantic versioning (semver)](http://semver.org/).
 
 <!-- NOTE: An entry template for a new version is automatically added each time `make version` is called. Fill in changes afterwards. -->
+
+* **[v0.1.4](https://github.com/mklement0/fls/compare/v0.1.3...v0.1.4)** (2015-06-09):
+  * [doc] Attempt to fix problem with read-me formatting in the npm registry.
+  * [dev] Makefile updated.
 
 * **[v0.1.3](https://github.com/mklement0/fls/compare/v0.1.2...v0.1.3)** (2015-06-03):
   * [doc] Read-me fixed and improved.

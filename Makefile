@@ -100,7 +100,6 @@ version:
 	    echo "==="; \
 	    echo "Enter new version number in full or as one of: 'patch', 'minor', 'major', optionally prefixed with 'pre'."; \
 	    echo "(Alternatively, pass a value from the command line with 'VER=<new-ver>'.)"; \
-	    echo "==="; \
 	    read -p "NEW VERSION number (just Enter to abort)?: " -re VER && { [[ -z $$VER ]] && echo 'Aborted.' >&2 && exit 2; }; \
 	  fi; \
 	fi; \
@@ -129,6 +128,7 @@ release: _need-origin _need-npm-credentials _need-master-branch _need-clean-ws-o
 	 $(EDITOR) CHANGELOG.md; \
 	 { fgrep -q "v$$newVer" CHANGELOG.md && ! fgrep -q '???' CHANGELOG.md; } || { echo "ABORTED: No changelog entries provided for new version v$$newVer." >&2; exit 2; }; \
 	 commitMsg="v$$newVer"$$'\n'"`sed -n '/\*\*'"v$$newVer"'\*\*/,/^\* /p' CHANGELOG.md | sed '1d;$$d'`"; \
+	 echo "-- Updating README.md..."; \
 	 $(MAKE) -f $(lastword $(MAKEFILE_LIST)) update-license-year update-readme || exit; \
 	 git add --update . || exit; \
 	 echo '-- Committing...'; \
