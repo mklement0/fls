@@ -4,6 +4,10 @@ Versioning complies with [semantic versioning (semver)](http://semver.org/).
 
 <!-- NOTE: An entry template for a new version is automatically added each time `make version` is called. Fill in changes afterwards. -->
 
+* **[v0.1.5](https://github.com/mklement0/fls/compare/v0.1.4...v0.1.5)** (2015-07-18):
+  * [fix] Symlinks passed as file operands are now correctly detected, even if their targets do not exist.
+  * [dev] Test for above fix added, Makefile improvements.
+
 * **[v0.1.4](https://github.com/mklement0/fls/compare/v0.1.3...v0.1.4)** (2015-06-09):
   * [doc] Attempt to fix problem with read-me formatting in the npm registry.
   * [dev] Makefile updated.

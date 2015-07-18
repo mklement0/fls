@@ -106,7 +106,7 @@ isNonEmpty() {
 # --- END: Functions
 
 # Output version number and exit, if requested. Note that the `ver="..."` statement is automatically updated by `make version VER=<newVer>` - DO keep the 'v' suffix in the variable _definition_.
-[[ $1 == '--version' ]] && { declare ver="v0.1.4"; echo "$kTHIS_NAME version ${ver#v}"; exit 0; }
+[[ $1 == '--version' ]] && { declare ver="v0.1.5"; echo "$kTHIS_NAME version ${ver#v}"$'\nFor license information and more, visit https://github.com/mklement0/fls'; exit 0; }
 
 # Command-line help.
 # !! -h is a valid option for ls that we normally must pass through, 
@@ -381,7 +381,7 @@ if [[ -n $filterExpr ]]; then
 
   if [[ -n $errMsg ]]; then # INVALID filter
 
-    if [[ $optionsSpecified -eq 0 && -e $filterExpr ]]; then
+    if [[ $optionsSpecified -eq 0 && ( -e $filterExpr || -L $filterExpr ) ]]; then
       # !! If the filter wasn't specified unambiguously as such - as the 1st argument *before options* -
       # !! and it happens to be an existing filesystem item, we reinterpret the value as a file operand
       # !! and assume that this means that no filter was specified.
@@ -395,7 +395,7 @@ if [[ -n $filterExpr ]]; then
 
   else
 
-    if [[ $optionsSpecified -eq 0 && -e $filterExpr ]]; then
+    if [[ $optionsSpecified -eq 0 && ( -e $filterExpr || -L $filterExpr ) ]]; then
       echo "WARNING: '$filterExpr' was treated as a filter expression, but there is also a filesystem item by that name in the current directory."$'\n'"         To target the latter, specify $kFILTER_NONE as the first argument." >&2
     fi
 
@@ -442,7 +442,11 @@ else # *multiple* file operands given - typically the result of globbing on the 
 
   declare prevPathPrefix=$'\3'
   for f; do # Loop over file operands  
-    [[ -e $f ]] || die "$f: No such file or directory"  # ensure existence
+    # Ensure that the item exists.
+    # NOTE: We must test for *both* -e and -L, because, in the case of a symlink,
+    #       -e tests the *target* of the symlink, and if that doesn't happen to exist, returns false.
+    #       However, -L will tell us if a symlink *itself* exists. 
+    [[ -e $f || -L $f ]] || die "$f: No such file or directory"
     f=${f%/} # trim trailing '/'
     filename=${f##*/}  # extract *mere filename*
     pathPrefix=${f%$filename}
