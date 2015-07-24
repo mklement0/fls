@@ -106,7 +106,7 @@ isNonEmpty() {
 # --- END: Functions
 
 # Output version number and exit, if requested. Note that the `ver="..."` statement is automatically updated by `make version VER=<newVer>` - DO keep the 'v' suffix in the variable _definition_.
-[[ $1 == '--version' ]] && { declare ver="v0.1.5"; echo "$kTHIS_NAME version ${ver#v}"$'\nFor license information and more, visit https://github.com/mklement0/fls'; exit 0; }
+[[ $1 == '--version' ]] && { ver="v0.1.5"; echo "$kTHIS_NAME version ${ver#v}"$'\nFor license information and more, visit https://github.com/mklement0/fls'; exit 0; }
 
 # Command-line help.
 # !! -h is a valid option for ls that we normally must pass through, 
@@ -117,7 +117,7 @@ if [[ $1 == '--help' || ($1 == '-h' && $# -eq 1) ]]; then
   cat <<EOF
 SYNOPSIS
   $kTHIS_NAME [filters] [options-for-ls] [dir]
-  $kTHIS_NAME [filters] [options-for-ls] fileOrDir ...
+  $kTHIS_NAME [filters] [options-for-ls] fileOrDir...
 
 DESCRIPTION
   A type-filtering wrapper for the ls utility.
@@ -155,7 +155,7 @@ DESCRIPTION
     A string of one or more filter characters, optionally grouped by negation.
     AND logic is implicitly applied to multiple filters; i.e., matching items
     must meet ALL criteria.
-    A ^ preceding one or more characters negates their logic; Only one ^
+    A ^ preceding one or more characters negates their logic; only one ^
     is allowed.
     Using just a - (hyphen) explicitly indicates that *no* filtering should
     be applied at all.
@@ -173,6 +173,8 @@ DESCRIPTION
     f, d
       Matches a file / directory; note that for symlinks the type of their
       *target* is matched.
+      Caveat: This means that if a symlink points to a non-existing target,
+      neither filter will match it; only L by itself will output such symlinks.
     
     x
       Matches an executable file or searchable directory; add f or d to
@@ -237,22 +239,12 @@ kFILTER_NONE='-'
 # NOTE: Note that the filter expression, if specified, must be the VERY FIRST ARGUMENT,
 #       even before the options to pass through to ls.
 #       While nonstandard, this allows defining aliases such as `alias lsexe='fls xf' and reduces ambiguity.
-declare filterExpr= firstFileOperand=
-case $1 in
-  [^-]*|$kFILTER_NONE|'') # A non-option - possibly, but not necessarily, a filter expression
-    case $1 in
-      */*|.) # If the putative filter contains '/' or is '.' - neither of which are valid filter chars. - we definitively assume that it is a file operand instead.
-        firstFileOperand=$1
-        ;;
-      $kFILTER_NONE|'') # No filter is to be applied (in addition to $kFILTER_NONE we also accept an explicitly passed empty string).
-        : # We don't assign to $filterExpr to imply unfiltered output and let shift consume the argument below.
-        ;;
-      *)
-        # START with the assumption that this is a filter - but it may turn out not to be; see below.
-        filterExpr=$1
-        ;;
-    esac
-    shift # Consume the 1st argument so that option parsing below works.
+declare filterExpr= firstArg= firstArgWasNonOption=0 unambiguousFilter=0 unfiltered=0
+firstArg=$1
+case $firstArg in
+  [^-]*|$kFILTER_NONE) # A non-option - possibly, but not necessarily, a filter expression
+    firstArgWasNonOption=1
+    shift # Consume the 1st argument so that options parsing with getopts below works.
     ;;
 esac
 
@@ -268,23 +260,38 @@ while getopts :aA opt; do [[ $opt == '?' ]] && continue; includeHidden=1; done
 declare -i optionsSpecified=0
 (( OPTIND > 1 )) && optionsSpecified=1
 
-# !! If the very first argument looks like a path and there were also options specified, abort, because, for consistency, the only
-# !! argument we allow before options is a filter.
-[[ $optionsSpecified -eq 1 && -n $firstFileOperand ]] && dieSyntax "Only a filter expression may precede options on the command line."
+# If a non-option preceded the option, we assume - for now - that it is an
+# unambiguously specified filter.
+(( firstArgWasNonOption && optionsSpecified )) && unambiguousFilter=1
 
 # Save all options for passing them through to ls later.
 # Note: This includes a terminating '--', if it was specified.
 declare -a optsForLs=( "${@:1:OPTIND-1}" )
 
 # Skip options
-shift $((OPTIND - 1)) 
+shift $((OPTIND - 1))
 
-# Restore the 1st file operand as an argument, if necessary.
-[[ -n $firstFileOperand ]] && set -- "$firstFileOperand" "$@"
+# Examine the potential filter argument.
+(( firstArgWasNonOption )) && filterExpr=$firstArg || { filterExpr=$1; shift; }
+case $filterExpr in
+  */*|.) # If the putative filter contains '/' or is '.' - neither of which are valid filter chars. - we definitively assume that it is NOT a filter, but a file operand.
+    unfiltered=1
+    # Prepend to operands to restore the full list of file/dir operands.
+    set -- "$filterExpr" "$@"
+    filterExpr=
+    ;;
+  $kFILTER_NONE|'') # No filter is to be applied (in addition to $kFILTER_NONE we also accept an explicitly passed empty string or specifying nothing but ls options, if any, at all).
+    unfiltered=1
+    ;;
+  *)
+    : # Assume we're dealing with a filter for now - we'll determine 
+      # decisively below.
+    ;;
+esac
 
 
-# PARSE THE FILTER EXPRESSION, if any.
-if [[ -n $filterExpr ]]; then
+# PARSE THE (PRESUMPTIVE) FILTER EXPRESSION, if any.
+if (( ! unfiltered )); then
 
   declare errMsg=
   while :; do  # dummy loop for easily breaking out of the flow below
@@ -381,27 +388,31 @@ if [[ -n $filterExpr ]]; then
 
   if [[ -n $errMsg ]]; then # INVALID filter
 
-    if [[ $optionsSpecified -eq 0 && ( -e $filterExpr || -L $filterExpr ) ]]; then
+    if [[ $unambiguousFilter -eq 0 && ( -e $filterExpr || -L $filterExpr ) ]]; then
       # !! If the filter wasn't specified unambiguously as such - as the 1st argument *before options* -
       # !! and it happens to be an existing filesystem item, we reinterpret the value as a file operand
       # !! and assume that this means that no filter was specified.
       # Restore the value as the first operand.
       set -- "$filterExpr" "$@"
-      filterExpr=
+      unfiltered=1 filterExpr=
     else
       # Report invalid filter and exit.
-      dieSyntax "$errMsg"$'\n  '"If you meant this argument to be a file or directory operand, the implication is that it does not exist."$'\n  '"Generally, specify $kFILTER_NONE as the first argument to explicitly indicate that no filtering should be applied."$'\n '
+      dieSyntax "$errMsg"$'\n  '"If you meant this argument to be a file or directory operand, the implication is that it does not exist."$'\n  '"Specify $kFILTER_NONE as the first argument to explicitly indicate that no filtering should be applied."$'\n '
     fi
 
-  else
+  else # VALID filter
 
-    if [[ $optionsSpecified -eq 0 && ( -e $filterExpr || -L $filterExpr ) ]]; then
-      echo "WARNING: '$filterExpr' was treated as a filter expression, but there is also a filesystem item by that name in the current directory."$'\n'"         To target the latter, specify $kFILTER_NONE as the first argument." >&2
+    if [[ $unambiguousFilter -eq 0 && ( -e $filterExpr || -L $filterExpr ) ]]; then
+      cat <<EOF >&2
+WARNING: '$filterExpr' treated as filter, but there's also a filesystem item
+         by that name.
+         To target the latter, specify $kFILTER_NONE as the first argument.
+EOF
     fi
 
   fi
 
-fi # [[ -n $filterExpr ]]
+fi # (( ! unfiltered ))
 
 # DETERMINE CANDIDATE FILES - globbing
 # Configure globbing:
@@ -462,7 +473,7 @@ else # *multiple* file operands given - typically the result of globbing on the 
 fi
 
 # FILTER AND OUTPUT.
-if [[ -z $filterExpr ]]; then # NO filtering
+if (( unfiltered )); then
     
     # We CANNOT just relay invocation to `ls` due to our differing behavior of:
     #   - never descending into directories (that alone could easily be remedied with -d, however)
