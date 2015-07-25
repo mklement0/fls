@@ -116,8 +116,8 @@ isNonEmpty() {
 if [[ $1 == '--help' || ($1 == '-h' && $# -eq 1) ]]; then
   cat <<EOF
 SYNOPSIS
-  $kTHIS_NAME [filters] [options-for-ls] [dir]
-  $kTHIS_NAME [filters] [options-for-ls] fileOrDir...
+  $kTHIS_NAME [filter] [options-for-ls] [dir]
+  $kTHIS_NAME [filter] [options-for-ls] fileOrDir...
 
 DESCRIPTION
   A type-filtering wrapper for the ls utility.
@@ -151,7 +151,7 @@ DESCRIPTION
     will instead target that directory's *content*, as if a single directory
     had been explicitly specified - it cannot tell the difference.
 
-  filters
+  filter
     A string of one or more filter characters, optionally grouped by negation.
     AND logic is implicitly applied to multiple filters; i.e., matching items
     must meet ALL criteria.
@@ -160,11 +160,16 @@ DESCRIPTION
     Using just a - (hyphen) explicitly indicates that *no* filtering should
     be applied at all.
 
-    Note that the filters argument, if specified, must always come *first*,
-    even before any options for ls. This reduces ambiguity and facilitates
-    definition of aliases (see below).
-    To avoid ambiguity when no options are specified at all, use $kFILTER_NONE as the
-    first argument.
+    For convenience and to facilitate definition of aliases, the filter may be
+    placed before or after the options to pass to ls, if any.
+    A first operand that is not a valid filter is considered a file operand
+    instead; i.e., no filter is applied, and all operands are considered file/
+    directory names or paths.
+    To unambiguously specify a filter, either:
+     - either: place it before options; e.g.: $kTHIS_NAME d -l [...]
+     - or: follow it with '--'; e.g.: $kTHIS_NAME d -- [...]
+    Conversely, to explicitly request unfiltered output, use '--'
+    as the first operand; e.g.: $kTHIS_NAME -- [...]
 
     Filter characters correspond to *Bash's file-test operators*; common ones
     are listed below; for the full list, see CONDITIONAL EXPRESSIONS in
@@ -233,21 +238,10 @@ EOF
     exit 0
 fi
 
-# NOTE: The special value indicates that NO filtering is to be used.
-#       Logic: not (^) nothing = anything
-kFILTER_NONE='^'
-
 # NOTE: Note that the filter expression, if specified, must be the VERY FIRST ARGUMENT,
 #       even before the options to pass through to ls.
 #       While nonstandard, this allows defining aliases such as `alias lsexe='fls xf' and reduces ambiguity.
-declare filterExpr= firstArg= firstArgWasNonOption=0 unambiguousFilter=0 unfiltered=0 includeHidden includeHiddenAndDotAndDotDot
-firstArg=$1
-case $firstArg in
-  [^-]*|$kFILTER_NONE) # A non-option - possibly, but not necessarily, a filter expression
-    firstArgWasNonOption=1
-    shift # Consume the 1st argument so that options parsing with getopts below works.
-    ;;
-esac
+declare filterExpr= firstArgWasOperand=0 unambiguousFilter=0 unfiltered=0 includeHidden includeDotAndDotDot
 
 # All options will be passed through to `ls`, however, we need to determine 
 # if the option to include hidden entries was specified (-a or -A), because 
@@ -257,7 +251,7 @@ esac
 declare -a optsForLs=()
 # ----- BEGIN: OPTIONS PARSING
 #  - After the end of options parsing, $@ only contains the operands (non-option arguments), if any.
-allowOptsAfterOperands=1 operands=() i=0 optName= isLong=0 prefix= optArg= haveOptArgAttached=0 haveOptArgAsNextArg=0 acceptOptArg=0 needOptArg=0
+operands=() argNdx=1 i=0 optName= isLong=0 prefix= optArg= haveOptArgAttached=0 haveOptArgAsNextArg=0 acceptOptArg=0 needOptArg=0
 while (( $# )); do
   if [[ $1 =~ ^(-)[a-zA-Z0-9]+.*$ || $1 =~ ^(--)[a-zA-Z0-9]+.*$ ]]; then # an option: either a short option / multiple short options in compressed form or a long option
     optsForLs+=( "$1" )
@@ -272,10 +266,14 @@ while (( $# )); do
         fi
         (( haveOptArgAttached )) && optArgOpt=$optArgAttached optArgReq=$optArgAttached || { (( $# > 1 )) && { optArgReq=$2; haveOptArgAsNextArg=1; }; }
         # ---- BEGIN: CUSTOMIZE HERE
+        # !! In theory, we need to explicitly deal with *short* options with *optional* arguments so we can distinguish between more compressed options
+        # !! and a trailing optional argument.
+        # !! In practice, BSD ls has no such options (as of OSX 10.10), and neither does GNU ls as of coreutils 8.32 (the only optional option-argument
+        # !! exits for --color[=when], but there's no short synonym for --color).
         case $optName in
           a|all)
             includeHidden=1
-            includeHiddenAndDotAndDotDot=1
+            includeDotAndDotDot=1 # also include . and ..
             ;;
           A|almost-all)
             includeHidden=1
@@ -286,54 +284,39 @@ while (( $# )); do
         (( acceptOptArg || needOptArg )) && break
     done
   else # an operand
-    if [[ $1 == '--' ]]; then
+    if [[ $1 == '--' ]]; then # end-of-options signifier
+      case ${#operands[@]} in
+        0) # first operand is '--'? -> UNfiltered output requested
+          unfiltered=1
+          ;;
+        1) # first operand is *followed* by '--'? -> unambiguously a filter
+          unambiguousFilter=1
+          ;;
+      esac
       optsForLs+=( "$1" )
-      shift; operands+=( "$@" ); break
-    elif (( allowOptsAfterOperands )); then
-      operands+=( "$1" ) # continue 
-    else
-      operands=( "$@" )
-      break
+      shift; operands+=( "$@" ); break # all remaining arguments are by definition operands
+    else # regular operand
+      (( argNdx == 1 )) && firstArgWasOperand=1
+      operands+=( "$1" ) # continue
     fi
   fi
   shift
+  (( ++argNdx ))
 done
-(( "${#operands[@]}" > 0 )) && set -- "${operands[@]}"; unset allowOptsAfterOperands operands i optName isLong prefix optArgAttached haveOptArgAttached haveOptArgAsNextArg acceptOptArg needOptArg
+(( "${#operands[@]}" > 0 )) && set -- "${operands[@]}"; unset operands argNdx i optName isLong prefix optArgAttached haveOptArgAttached haveOptArgAsNextArg acceptOptArg needOptArg
 # ----- END: OPTIONS PARSING: "$@" now contains all operands (non-option arguments).
 
-# Determine if any options were specified.
-# Note that OPTIND is > 1 even if --, the end-of-options marker, was the only (pseudo-)option specified.
-declare -i optionsSpecified=0
-(( ${#optsForLs} > 0 )) && optionsSpecified=1
-
-# If a non-option preceded the option, we assume - for now - that it is an
-# unambiguously specified filter.
-(( firstArgWasNonOption && optionsSpecified )) && unambiguousFilter=1
-
-# Skip options
-shift $((OPTIND - 1))
-
-# Examine the potential filter argument.
-(( firstArgWasNonOption )) && filterExpr=$firstArg || { filterExpr=$1; shift; }
-case $filterExpr in
-  */*|.) # If the putative filter contains '/' or is '.' - neither of which are valid filter chars. - we definitively assume that it is NOT a filter, but a file operand.
-    unfiltered=1
-    # Prepend to operands to restore the full list of file/dir operands.
-    set -- "$filterExpr" "$@"
-    filterExpr=
-    ;;
-  $kFILTER_NONE|'') # No filter is to be applied (in addition to $kFILTER_NONE we also accept an explicitly passed empty string or specifying nothing but ls options, if any, at all).
-    unfiltered=1
-    ;;
-  *)
-    : # Assume we're dealing with a filter for now - we'll determine 
-      # decisively below.
-    ;;
-esac
-
+# A filter can be unambigously specified in two ways:
+#  - following the first operand (the filter) with '--' (handled above)
+#  - specifying it as the very first argument followed by options.
+(( firstArgWasOperand && ${#optsForLs[@]} > 0 )) && unambiguousFilter=1 # first operand is also first argument -> unambiguously a filter
 
 # PARSE THE (PRESUMPTIVE) FILTER EXPRESSION, if any.
 if (( ! unfiltered )); then
+
+  # Proceed on the knowledge (unambiguousFilter == 1) or assumption that the 
+  # first operand is the filter expression.
+  filterExpr=$1; shift
 
   declare errMsg=
   while :; do  # dummy loop for easily breaking out of the flow below
@@ -430,25 +413,38 @@ if (( ! unfiltered )); then
 
   if [[ -n $errMsg ]]; then # INVALID filter
 
-    if [[ $unambiguousFilter -eq 0 && ( -e $filterExpr || -L $filterExpr ) ]]; then
-      # !! If the filter wasn't specified unambiguously as such - as the 1st argument *before options* -
-      # !! and it happens to be an existing filesystem item, we reinterpret the value as a file operand
-      # !! and assume that this means that no filter was specified.
+    if (( unambiguousFilter )); then
+      # We know that the filter was explicitly specified as such, so we 
+      # report an error and exit.
+      dieSyntax "$errMsg"
+    else
+      # The putative filter wasn't specified unambiguously as one, so we 
+      # assume that it is a file operand instead and that NO filter is to
+      # be applied.
+      # Note that for consistency we do that even if that file operand is not
+      # an existing file/dir either - we'll let ls report its normal error later.
+      # The slight downside is that if the user meant to specify a filter
+      # that happens to be invalid, it will be treated as a file operand 
+      # without comment.
       # Restore the value as the first operand.
       set -- "$filterExpr" "$@"
-      unfiltered=1 filterExpr=
-    else
-      # Report invalid filter and exit.
-      dieSyntax "$errMsg"$'\n  '"If you meant this argument to be a file or directory operand, the implication is that it does not exist."$'\n  '"Specify $kFILTER_NONE as the first argument to explicitly indicate that no filtering should be applied."$'\n '
+      unfiltered=1 filterExpr=      
     fi
 
   else # VALID filter
 
+    # Warn, if the filter was not unambiguously specified and there's also
+    # a filesystem item of the same name.
     if [[ $unambiguousFilter -eq 0 && ( -e $filterExpr || -L $filterExpr ) ]]; then
+      ftype='file'
+      if [[ -L $filterExpr ]]; then
+        ftype='symlink'
+      elif [[ -d $filterExpr ]]; then
+        ftype='directory'
+      fi
       cat <<EOF >&2
-WARNING: '$filterExpr' treated as filter, but there's also a filesystem item
-         by that name.
-         To target the latter, specify $kFILTER_NONE as the first argument.
+WARNING: '$filterExpr' treated as filter, but also exists as a $ftype.
+         To target the latter, specify '--' as the first argument.
 EOF
     fi
 
@@ -477,7 +473,7 @@ if [[ $# -eq 0 || ($# -eq 1 && -d "$1") ]]; then # a single dir. or no file oper
   fi
 
   # If -a (--all) was specified, we have to include . and ..
-  if (( includeHiddenAndDotAndDotDot )); then
+  if (( includeDotAndDotDot )); then
     # Sadly, * does NOT include . ad .. and we canNOT blindly assume that . and .. are the FIRST 2 entries, as names such as '#file'
     # would sort before them. The pragmatic solution is to use `ls -a1` to get all entries, even though that means
     # that filenames with embedded newlines won't be handled properly.
@@ -503,19 +499,17 @@ else # *multiple* file operands given - typically the result of globbing on the 
   # !! Note: We do NOT use `dirname` and `basename` in the LOOP - invoking them on 
   # !! each of many files causes performance problems; shell expansions are used instead.
 
-  declare prevPathPrefix=$'\3'
+  declare -i i=0
   for f; do # Loop over file operands  
-    # Ensure that the item exists.
-    # NOTE: We must test for *both* -e and -L, because, in the case of a symlink,
-    #       -e tests the *target* of the symlink, and if that doesn't happen to exist, returns false.
-    #       However, -L will tell us if a symlink *itself* exists. 
-    [[ -e $f || -L $f ]] || die "$f: No such file or directory"
+    # Note: We do NOT test the existence of each operand here, as we ultimately
+    #       want `ls` to report errors about them - see below.
     f=${f%/} # trim trailing '/'
     filename=${f##*/}  # extract *mere filename*
     pathPrefix=${f%$filename}
-    [[ $prevPathPrefix == $'\3' || "$prevPathPrefix" == "$pathPrefix" ]] || dieSyntax "If you specify multiple file operands, they must all have the same parent directory."
+    [[ $i -eq 0 || "$prevPathPrefix" == "$pathPrefix" ]] || dieSyntax "If you specify multiple file operands, they must all have the same parent directory."
     candidateFiles+=( "$filename" )  # Add the *mere filename* to the list of candidate files.
     prevPathPrefix=$pathPrefix
+    (( ++i ))
   done
 
   # Switch to dir., since we'll be passing *mere filenames* to `ls` later.
@@ -524,7 +518,7 @@ else # *multiple* file operands given - typically the result of globbing on the 
 
 fi
 
-# FILTER AND OUTPUT.
+# FILTER, if requested, and OUTPUT.
 if (( unfiltered )); then
     
     # We CANNOT just relay invocation to `ls` due to our differing behavior of:
@@ -544,12 +538,12 @@ else  # apply filters
   for char in "${posFileTestOps[@]}"; do
     posExpr+="${posExpr:+ && }-$char \$f"
   done
-  # Negative filters: NEITHER / NOR logic: DISjunction of operands that is NEGACTED AS A WHOLE.
+  # Negative filters: NEITHER / NOR logic: DISjunction of operands that is NEGATED AS A WHOLE.
   for char in "${negFileTestOps[@]}"; do
     negExpr+="${negExpr:+ || }-$char \$f"
   done
 
-  # Synthesize the entire conditional
+  # Synthesize the combined conditional
   filterConditional=
   if [[ -n $posExpr && -n $negExpr ]]; then
     filterConditional+="[[ $posExpr && ! ($negExpr) ]]"
@@ -567,7 +561,18 @@ else  # apply filters
   # of items that match ALL the filters specified.
   files=()
   for f in "${candidateFiles[@]}"; do
-    eval "$filterConditional" && files+=( "$f" )
+    # Determine if the item exists.
+    # NOTE: We must test for *both* -e and -L, because, in the case of a symlink,
+    #       -e tests the *target* of the symlink, and if that doesn't happen to exist, returns false.
+    #       However, -L will tell us if a symlink *itself* exists. 
+    if [[ -e $f || -L $f ]]; then # item exists, apply filter
+      eval "$filterConditional" && files+=( "$f" )
+    else # item does NOT exist
+      # Non-existent items are passed through to ls so that *it* may report
+      # an error - applying a filter to a non-existent item makes no sense,
+      # as it would always be weeded out quietly.
+      files+=( "$f" )
+    fi
   done
 
 fi
@@ -576,7 +581,7 @@ fi
 # Pass matched items, if any, to ls.
 if (( ${#files[@]} > 0 )); then
   # Invoke `ls` with all items matched, passing all options through.
-  # The `command ` prefix ensures that any shell function or alias named `ls` is bypassed.
+  # Usine `exec` to invoke ls ensures that any shell function or alias named `ls` is bypassed.
   # NOTE: We ALWAYS prepend -d, because we never want to descend into directories to avoid confusion over what is being filtered.
   # EXECUTION ENDS HERE.
   exec ls -d "${optsForLs[@]}" "${files[@]}"
