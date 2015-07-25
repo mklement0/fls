@@ -163,7 +163,7 @@ DESCRIPTION
     Note that the filters argument, if specified, must always come *first*,
     even before any options for ls. This reduces ambiguity and facilitates
     definition of aliases (see below).
-    To avoid ambiguity when no options are specified at all, use - as the
+    To avoid ambiguity when no options are specified at all, use $kFILTER_NONE as the
     first argument.
 
     Filter characters correspond to *Bash's file-test operators*; common ones
@@ -234,12 +234,13 @@ EOF
 fi
 
 # NOTE: The special value indicates that NO filtering is to be used.
-kFILTER_NONE='-'
+#       Logic: not (^) nothing = anything
+kFILTER_NONE='^'
 
 # NOTE: Note that the filter expression, if specified, must be the VERY FIRST ARGUMENT,
 #       even before the options to pass through to ls.
 #       While nonstandard, this allows defining aliases such as `alias lsexe='fls xf' and reduces ambiguity.
-declare filterExpr= firstArg= firstArgWasNonOption=0 unambiguousFilter=0 unfiltered=0
+declare filterExpr= firstArg= firstArgWasNonOption=0 unambiguousFilter=0 unfiltered=0 includeHidden includeHiddenAndDotAndDotDot
 firstArg=$1
 case $firstArg in
   [^-]*|$kFILTER_NONE) # A non-option - possibly, but not necessarily, a filter expression
@@ -248,25 +249,66 @@ case $firstArg in
     ;;
 esac
 
-# Parse OPTIONS.
-# The options will be passed through to `ls`, however, we need to determine 
+# All options will be passed through to `ls`, however, we need to determine 
 # if the option to include hidden entries was specified (-a or -A), because 
 # we need to perform our internal globbing accordingly.
-declare -i includeHidden=0
-while getopts :aA opt; do [[ $opt == '?' ]] && continue; includeHidden=1; done
+# Also, we allow GNU-style mixing of options and operands, but pass all options *before* operands when invoking ls, as the latter may
+# not support mixing, e.g., on OSX. 
+declare -a optsForLs=()
+# ----- BEGIN: OPTIONS PARSING
+#  - After the end of options parsing, $@ only contains the operands (non-option arguments), if any.
+allowOptsAfterOperands=1 operands=() i=0 optName= isLong=0 prefix= optArg= haveOptArgAttached=0 haveOptArgAsNextArg=0 acceptOptArg=0 needOptArg=0
+while (( $# )); do
+  if [[ $1 =~ ^(-)[a-zA-Z0-9]+.*$ || $1 =~ ^(--)[a-zA-Z0-9]+.*$ ]]; then # an option: either a short option / multiple short options in compressed form or a long option
+    optsForLs+=( "$1" )
+    prefix=${BASH_REMATCH[1]}; [[ $prefix == '--' ]] && isLong=1 || isLong=0
+    for (( i = 1; i < (isLong ? 2 : ${#1}); i++ )); do
+        acceptOptArg=0 needOptArg=0 haveOptArgAttached=0 haveOptArgAsNextArg=0 optArgAttached= optArgOpt= optArgReq=
+        if (( isLong )); then # long option: parse into name and, if present, argument
+          optName=${1:2}
+          [[ $optName =~ ^([^=]+)=(.*)$ ]] && { optName=${BASH_REMATCH[1]}; optArgAttached=${BASH_REMATCH[2]}; haveOptArgAttached=1; }
+        else # short option: *if* it takes an argument, the rest of the string, if any, is by definition the argument.
+          optName=${1:i:1}; optArgAttached=${1:i+1}; (( ${#optArgAttached} >= 1 )) && haveOptArgAttached=1
+        fi
+        (( haveOptArgAttached )) && optArgOpt=$optArgAttached optArgReq=$optArgAttached || { (( $# > 1 )) && { optArgReq=$2; haveOptArgAsNextArg=1; }; }
+        # ---- BEGIN: CUSTOMIZE HERE
+        case $optName in
+          a|all)
+            includeHidden=1
+            includeHiddenAndDotAndDotDot=1
+            ;;
+          A|almost-all)
+            includeHidden=1
+            ;;
+        esac
+        # ---- END: CUSTOMIZE HERE
+        (( needOptArg )) && { (( ! haveOptArgAttached && ! haveOptArgAsNextArg )) && dieSyntax "Option ${prefix}${optName} is missing its argument." || (( haveOptArgAsNextArg )) && shift; }
+        (( acceptOptArg || needOptArg )) && break
+    done
+  else # an operand
+    if [[ $1 == '--' ]]; then
+      optsForLs+=( "$1" )
+      shift; operands+=( "$@" ); break
+    elif (( allowOptsAfterOperands )); then
+      operands+=( "$1" ) # continue 
+    else
+      operands=( "$@" )
+      break
+    fi
+  fi
+  shift
+done
+(( "${#operands[@]}" > 0 )) && set -- "${operands[@]}"; unset allowOptsAfterOperands operands i optName isLong prefix optArgAttached haveOptArgAttached haveOptArgAsNextArg acceptOptArg needOptArg
+# ----- END: OPTIONS PARSING: "$@" now contains all operands (non-option arguments).
 
 # Determine if any options were specified.
 # Note that OPTIND is > 1 even if --, the end-of-options marker, was the only (pseudo-)option specified.
 declare -i optionsSpecified=0
-(( OPTIND > 1 )) && optionsSpecified=1
+(( ${#optsForLs} > 0 )) && optionsSpecified=1
 
 # If a non-option preceded the option, we assume - for now - that it is an
 # unambiguously specified filter.
 (( firstArgWasNonOption && optionsSpecified )) && unambiguousFilter=1
-
-# Save all options for passing them through to ls later.
-# Note: This includes a terminating '--', if it was specified.
-declare -a optsForLs=( "${@:1:OPTIND-1}" )
 
 # Skip options
 shift $((OPTIND - 1))
@@ -434,8 +476,18 @@ if [[ $# -eq 0 || ($# -eq 1 && -d "$1") ]]; then # a single dir. or no file oper
     cd -- "$1" || die
   fi
 
-  # Get all items in the dir by globbing (which will return filenames only).
-  candidateFiles=( * )
+  # If -a (--all) was specified, we have to include . and ..
+  if (( includeHiddenAndDotAndDotDot )); then
+    # Sadly, * does NOT include . ad .. and we canNOT blindly assume that . and .. are the FIRST 2 entries, as names such as '#file'
+    # would sort before them. The pragmatic solution is to use `ls -a1` to get all entries, even though that means
+    # that filenames with embedded newlines won't be handled properly.
+    IFS=$'\n' read -d '' -ra candidateFiles <<EOF
+$(ls -a1)
+EOF
+  else
+    # Get all items in the dir by globbing (which will return filenames only).
+    candidateFiles=( * )
+  fi
 
 else # *multiple* file operands given - typically the result of globbing on the command line - or, atypically, a single *file*
 
