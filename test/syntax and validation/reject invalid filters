@@ -10,12 +10,32 @@ PATH=${PWD%%/test*}/bin:$PATH
 
 # None of the following should succeed.
 
+echo 'Unknown filter char'
 fls Z -- && exit 1 || :
 
-fls ^ -- && exit 1 || :
+echo 'Known + unknown filter char.'
+fls fZ -- && exit 1 || :
 
+echo 'Filter with invalid chars.'
 fls a/b -- && exit 1 || :
 
+echo 'Negation operator without any filters'
+fls ^ -- && exit 1 || :
+
+echo 'More than 1 negation operator - adjacent'
 fls f^^s -- && exit 1 || :
 
-fls fZ -- && exit 1 || :
+echo 'More than 1 negation operator - not adjacent'
+fls f^s^L -- && exit 1 || :
+
+echo 'Duplicate filter - both positive'
+fls ff -- && exit 1 || :
+
+echo 'Duplicate filter - positive and negative'
+fls f^f -- && exit 1 || :
+
+echo 'Duplicate filter - h and L synonyms - both positive'
+fls hL -- && exit 1 || :
+
+echo 'Duplicate filter - h and L synonyms - positive and negative'
+fls h^L -- && exit 1 || :

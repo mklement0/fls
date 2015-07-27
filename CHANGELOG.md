@@ -4,6 +4,20 @@ Versioning complies with [semantic versioning (semver)](http://semver.org/).
 
 <!-- NOTE: An entry template for a new version is automatically added each time `make version` is called. Fill in changes afterwards. -->
 
+* **[v0.2.0](https://github.com/mklement0/fls/compare/v0.1.5...v0.2.0)** (2015-07-26):
+  * **[breaking changes]**
+     * Behavior aligned with `ls` so as to facilitate use of `fls`-based aliases as general `ls` replacements with optional on-demand filtering.
+     * The filter argument may now be placed either before or after options; only _before_ options is it unambiguously a filter; alternatively,
+       following the first operand with `--` also unambiguously marks it as a filter.  
+       Options may now be intermingled with operands, even
+       on platforms whose `ls` implementation doesn't support it.
+     * Conversely, use `--` to explicitly requests that _no_ filtering be performed - unlike `-` previously, which no longer works.
+     * If the first operand is not unambiguously specified as a filter and it is not a valid filter, it is treated as a file/dir. operand.
+     * `-d`, previously only used behind the scenes for _multiple_ operands, can now be used explicitly to request that a _single_ operand
+       that is a _directory_ be targed as _itself_, as opposed to its contents.
+  * [fix] Filter validation improved to correctly detect mutually exclusive types and duplicate filters.
+  * [dev] Improved tests.
+
 * **[v0.1.5](https://github.com/mklement0/fls/compare/v0.1.4...v0.1.5)** (2015-07-18):
   * [fix] Symlinks passed as file operands are now correctly detected, even if their targets do not exist.
   * [dev] Test for above fix added, Makefile improvements.

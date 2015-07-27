@@ -64,6 +64,16 @@ intersection() {
   comm -12 <(awk 'BEGIN { FS="'"$sep"'" } { for(i=1;i<=NF;++i) print $i }' <<<"$list1" | sort) <(awk 'BEGIN { FS="'$sep'" } { for(i=1;i<=NF;++i) print $i }' <<<"$list2" | sort) | awk -v ORS="$outsep" '1'
 }
 
+# SYNOPSIS
+#   hasDuplicateChars charList
+# DESCRIPTION
+#   Indicates via exit code if the specified list of chars. (a string of chars. without separators) contains duplicate chars. or not.
+# CAVEATS
+#   BSD awk is not UTF8-aware.
+hasDuplicateChars() {
+  awk -v FS= 'BEGIN { haveDups=0 }{ for(i=1;i<=NF;++i) if (seen[$i]++) { haveDups=1; exit } } END { exit ! haveDups }' <<<"$*"
+}
+
 # SYNOPIS
 #   isEmpty dirOrFile
 # DESCRIPTION
@@ -106,7 +116,7 @@ isNonEmpty() {
 # --- END: Functions
 
 # Output version number and exit, if requested. Note that the `ver="..."` statement is automatically updated by `make version VER=<newVer>` - DO keep the 'v' suffix in the variable _definition_.
-[[ $1 == '--version' ]] && { ver="v0.1.5"; echo "$kTHIS_NAME version ${ver#v}"$'\nFor license information and more, visit https://github.com/mklement0/fls'; exit 0; }
+[[ $1 == '--version' ]] && { ver="v0.2.0"; echo "$kTHIS_NAME version ${ver#v}"$'\nFor license information and more, visit https://github.com/mklement0/fls'; exit 0; }
 
 # Command-line help.
 # !! -h is a valid option for ls that we normally must pass through, 
@@ -351,23 +361,25 @@ if (( ! unfiltered )); then
            # -N ... file has been modified since it was last read
            # -O ... owned by the effective user ID
            # -S ... a socket.
-    kFILE_TEST_OPERATORS=( b c d f g h k p r s u w x G L N O S )
-    # Of these, the following can be combined with 'f' or 'd' to distinguish between files and directories:
-    # Note that -s  (nonzero size) only has meaning for files, because even empty directories have nonzero size;
-    # however, we extend the nonempty semantics to directories with our own implementation.
-    kFILE_TEST_OPERATORS_FILE_VS_DIR_FILTERABLE=( g h k r s u w x G L N O )
-    # Of these, those that pertain to special filesystem items, but not including symlinks.
-    kFILE_TEST_OPERATORS_SPECIAL=( b c p S )
+    # The fundamental filesystem types, except symlinks (a symlink may be point to any of these types)
+    # Among the *positive* filters, only *one* of these makes sense.
+    kFILE_TEST_OPERATORS_TYPES=( f d b c p S )
+    # The symlink ID chars.
+    kFILE_TEST_OPERATORS_SYMLINK=( h L )
+    # The supplemental operators that can apply to any of the fundamental types (but NOT to a symlink itself)
+    kFILE_TEST_OPERATORS_ATTRIBUTES=( g k r s u w x G N O )
+    # All operators.
+    kFILE_TEST_OPERATORS=( "${kFILE_TEST_OPERATORS_TYPES[@]}" "${kFILE_TEST_OPERATORS_SYMLINK[@]}" "${kFILE_TEST_OPERATORS_ATTRIBUTES[@]}" )
 
     # Split into positive and negative filters, if specified.
-    declare filterChars=${filterExpr//^/} posFilterChars= negFilterChars= 
-    if [[ "$filterExpr" == "$filterChars" ]]; then # no negation operator present -> only positive filters
+    declare allFilterChars=${filterExpr//^/} posFilterChars= negFilterChars= 
+    if [[ "$filterExpr" == "$allFilterChars" ]]; then # no negation operator present -> only positive filters
 
       posFilterChars=$filterExpr
 
     else # negation operator present -> both positive and negative filters
 
-      (( ${#filterExpr} - ${#filterChars} == 1 )) || { errMsg='You may only specify ^, the negation operator, once.'; break; }
+      (( ${#filterExpr} - ${#allFilterChars} == 1 )) || { errMsg='You may only specify ^, the negation operator, once.'; break; }
       # Split the filters into positives (pre-'^') and negatives (post-'^')
       posFilterChars=${filterExpr%^*}
       negFilterChars=${filterExpr#*^}
@@ -388,43 +400,47 @@ if (( ! unfiltered )); then
     [[ ${posFilterChars//s/} != "$posFilterChars" ]] && { haveNonEmptyItemsFilter=1; posFilterChars=${posFilterChars//s/}; }
     [[ ${negFilterChars//s/} != "$negFilterChars" ]] && { haveEmptyItemsFilter=1; negFilterChars=${negFilterChars//s/}; }
 
-    # pv haveEmptyItemsFilter haveNonEmptyItemsFilter posFilterChars negFilterChars
-
-    # Make sure that ANY filter was specified.
-    [[ -z $posFilterChars && -z $negFilterChars ]] && (( haveEmptyItemsFilter == 0 && haveNonEmptyItemsFilter == 0 )) && { errMsg='Missing filters; you cannot use ^ by itself.'; break; }
+    # Make sure that an actual filter was specified, and not just the negation operator, ^.
+    [[ -z $posFilterChars && -z $negFilterChars ]] && (( haveEmptyItemsFilter == 0 && haveNonEmptyItemsFilter == 0 )) && { errMsg='You cannot use ^ by itself.'; break; }
 
     # Read the operator chars. into arrays.
     declare -a posFileTestOps=() negFileTestOps=()
     [[ -n $posFilterChars ]] && IFS=$'\n' read -d '' -ra posFileTestOps <<<"$(awk 'BEGIN { FS="" } { for(i=1;i<=NF;++i) print $i  }' <<<"$posFilterChars")"
     [[ -n $negFilterChars ]] && IFS=$'\n' read -d '' -ra negFileTestOps <<<"$(awk 'BEGIN { FS="" } { for(i=1;i<=NF;++i) print $i  }' <<<"$negFilterChars")"
+    allFileTestOps=( "${posFileTestOps[@]}" "${negFileTestOps[@]}" )
 
-    # See if a files-only or directory-only filter was (also) specified.
-    declare -i filesOnly dirsOnly nonFilesOnly nonDirsOnly
-    isIn 'f' "${posFileTestOps[@]}" && filesOnly=1 || filesOnly=0
-    isIn 'd' "${posFileTestOps[@]}" && dirsOnly=1 || dirsOnly=0
-    isIn 'f' "${negFileTestOps[@]}" && nonFilesOnly=1 || nonFilesOnly=0
-    isIn 'd' "${negFileTestOps[@]}" && nonDirsOnly=1 || nonDirsOnly=0
-    # Make sure that no attempt is made to filter by both files AND directories - these filters are mutually exclusive.
-    # Note: We still could have 'f' among the pos. filters, and 'd' among the negatives, and vice versa - while redundant, this does no harm.
-    (( (filesOnly && dirsOnly) || (nonFilesOnly && nonDirsOnly) )) && { errMsg='Please specify EITHER "f" OR "d"; specify neither to match files AND directories.'; break; }
+    # Make sure that filters aren't specified more than once.
+    hasDuplicateChars "$allFilterChars" || ( isIn 'h' "${allFileTestOps[@]}" && isIn 'L' "${allFileTestOps[@]}" ) && { errMsg='Filter expression contains duplicate filters.'; break; }
+
+    # Make sure that:
+    # - no unknown operators were specified 
+    for char in "${allFileTestOps[@]}"; do
+      isIn "$char" "${kFILE_TEST_OPERATORS[@]}" || { errMsg="Unknown or unsupported filter: '$char'"; break 2; }
+    done
+
+    # Make sure that:
+    # - among the positive test operators, at most *one* fundamental type is specified (e.g, EITHER 'f' OR 'd', as both doesn't make sense)
+    #   (among the negative filters, it makes at least hypothetical sense to exclude multiple types, such as `^cp` to exclude items that are NEITHER a character-special file NOR a named pipe)
+    declare -i typeCount=0
+    for char in "${posFileTestOps[@]}"; do
+      isIn "$char" "${kFILE_TEST_OPERATORS_TYPES[@]}" && (( ++typeCount ))
+    done
+    (( typeCount > 1 )) && { errMsg='Mutually exclusive positive filters.'; break; }
 
     # Note:
-    #  Combining listDirItself (-d with a single dir) typically requires no filter,
+    #  listDirItself (-d with a *single* dir to only list that dir *itself*) typically requires no filter,
     #  and technically makes sense with only a few; 'f', for instance, makes no sense.
-    #  
-
-    # Make sure that no unknown and no incompatible filters were specified.
-    allFileTestOps=( "${posFileTestOps[@]}" "${negFileTestOps[@]}" )
-    for char in "${allFileTestOps[@]}"; do
-      isIn "$char" "${kFILE_TEST_OPERATORS[@]}" || { errMsg="Unknown or unsupported file-test operator: '$char'"; break; }
-      if (( filesOnly || dirsOnly || nonFilesOnly || nonDirsOnly )); then
-        [[ $char == 'f' || $char == 'd' ]] && continue
-        # If a files-only or directories-only filter was given, make sure that it makes sense in combination
-        # with the other filters.
-        isIn "$char" "${kFILE_TEST_OPERATORS_FILE_VS_DIR_FILTERABLE[@]}" || { errMsg="It is pointless to combine 'f' or 'd' with '$char'."; break; }
+    #  However, given that -d is a general ls option that users may routinely specify, 
+    #  such as with a glob that *happens to* match only 1 directory, we only report a *warning*,
+    #  not an error - and we do so even if the filter wasn't explicitly specified as such.
+    if (( listDirItself )); then
+      if ( (( typeCount == 1 )) && ! isIn 'd' "${posFileTestOps[@]}" ) || isIn 'd' "${negFileTestOps[@]}"; then
+        echo "WARNING: -d applied to a single directory targets only that directory, so a non-directory filter invariably matches nothing." >&2
       fi
-    done
+    fi
+
     break # exit the dummy loop
+
   done  # dummy loop
 
   if [[ -n $errMsg ]]; then # INVALID filter
@@ -432,7 +448,7 @@ if (( ! unfiltered )); then
     if (( unambiguousFilter )); then
       # We know that the filter was explicitly specified as such, so we 
       # report an error and exit.
-      dieSyntax "$errMsg"
+      dieSyntax "INVALID FILTER: $errMsg"
     else
       # The putative filter wasn't specified unambiguously as one, so we 
       # assume that it is a file operand instead and that NO filter is to
@@ -460,7 +476,7 @@ if (( ! unfiltered )); then
       fi
       cat <<EOF >&2
 WARNING: '$filterExpr' treated as filter, but also exists as a $ftype.
-         To target the latter, specify '--' as the first argument.
+         To target the latter, specify '--' as the first operand.
 EOF
     fi
 

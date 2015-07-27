@@ -113,30 +113,31 @@ DESCRIPTION
      whose *content* to filter.
    - Or, as the result of globbing on the command line, by specifying multiple
      items *all from the same parent directory* to filter *themselves*.
-     Unlike with ls, matching items are printed by filename only, with any
-     path component removed.
+     Unlike with ls, matching items are always printed by filename only, with
+     a path component, if any, removed.
   Also, to allow use of a single utility in both filtering and non-filtering
   scenarios, specifying a filter is *optional* and not specifying one makes
-  fls behave like ls, within the constraints noted above.
+  fls behave like ls, within the constraints noted.
 
   options-for-ls
     Options to pass through to ls, such as -l to list in long format.
-    Note that *option -d is implictly always used*; that is, subdirectories
-    are always filtered and printed as themselves, and their content is 
-    neither examined nor printed.
 
   dir
     A *single* directory whose items (files and subdirectories) to filter;
     defaults to . (the current directory).
   
-  fileOrDir ...
+  fileOrDir...
     A list of files and/or subdirectories *from a single parent directory*
     to which to apply filtering *directly*.
     Typically, this list will come from a pathname expansion (globbing)
     on the command line.
+    Note that, unlike with ls, option -d is implictly for multiple operands; 
+    that is, (sub)directories among the operands are always filtered and
+    printed as themselves, and their content is neither examined nor printed.
     CAVEAT: If a glob happens to expand to a *single directory*, this utility
     will instead target that directory's *content*, as if a single directory
     had been explicitly specified - it cannot tell the difference.
+    When in doubt, use -d explicitly.
 
   filter
     A string of one or more filter characters, optionally grouped by negation.
@@ -144,17 +145,17 @@ DESCRIPTION
     must meet ALL criteria.
     A ^ preceding one or more characters negates their logic; only one ^
     is allowed.
-    Using just a - (hyphen) explicitly indicates that *no* filtering should
-    be applied at all.
+    Specifying just '--' explicitly indicates that *no* filtering should be
+    performed at all.
 
     For convenience and to facilitate definition of aliases, the filter may be
     placed before or after the options to pass to ls, if any.
     A first operand that is not a valid filter is considered a file operand
-    instead; i.e., no filter is applied, and all operands are considered file/
-    directory names or paths.
-    To unambiguously specify a filter, either:
-     - either: place it before options; e.g.: fls d -l [...]
-     - or: follow it with '--'; e.g.: fls d -- [...]
+    instead. If what you intended as a filter is treated as a (non-existent)
+    file instead, the implicication is that the filter is invalid; to see the
+    specific reason, specify the filter unambiguously as such, by:
+     - either: placing it before options; e.g.: fls d -l [...]
+     - or: following it with '--'; e.g.: fls -l d -- [...]
     Conversely, to explicitly request unfiltered output, use '--'
     as the first operand; e.g.: fls -- [...]
 
@@ -219,8 +220,9 @@ EXAMPLES
     # List all empty directories in the current dir.
   fls d^s
     # Use without filters:
-  fls        # same as ls
-  fls -lt ~  # same as ls -lt ~
+  fls           # same as ls
+  fls -lt ~     # same as ls -lt ~
+  fls -lt -- ~  # ditto, explicitly requesting unfiltered output
 ```
 
 <!-- DO NOT EDIT THE NEXT CHAPTER and RETAIN THIS COMMENT: The next chapter is updated by `make update-readme/release` with the contents of 'LICENSE.md'. ALSO, LEAVE AT LEAST 1 BLANK LINE AFTER THIS COMMENT. -->
@@ -253,6 +255,20 @@ This project gratefully depends on the following open-source components, accordi
 Versioning complies with [semantic versioning (semver)](http://semver.org/).
 
 <!-- NOTE: An entry template for a new version is automatically added each time `make version` is called. Fill in changes afterwards. -->
+
+* **[v0.2.0](https://github.com/mklement0/fls/compare/v0.1.5...v0.2.0)** (2015-07-26):
+  * **[breaking changes]**
+     * Behavior aligned with `ls` so as to facilitate use of `fls`-based aliases as general `ls` replacements with optional on-demand filtering.
+     * The filter argument may now be placed either before or after options; only _before_ options is it unambiguously a filter; alternatively,
+       following the first operand with `--` also unambiguously marks it as a filter.  
+       Options may now be intermingled with operands, even
+       on platforms whose `ls` implementation doesn't support it.
+     * Conversely, use `--` to explicitly requests that _no_ filtering be performed - unlike `-` previously, which no longer works.
+     * If the first operand is not unambiguously specified as a filter and it is not a valid filter, it is treated as a file/dir. operand.
+     * `-d`, previously only used behind the scenes for _multiple_ operands, can now be used explicitly to request that a _single_ operand
+       that is a _directory_ be targed as _itself_, as opposed to its contents.
+  * [fix] Filter validation improved to correctly detect mutually exclusive types and duplicate filters.
+  * [dev] Improved tests.
 
 * **[v0.1.5](https://github.com/mklement0/fls/compare/v0.1.4...v0.1.5)** (2015-07-18):
   * [fix] Symlinks passed as file operands are now correctly detected, even if their targets do not exist.
