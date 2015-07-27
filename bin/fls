@@ -54,7 +54,7 @@ isIn() { indexOf "$@" >/dev/null; }
 # Note that any nonempty result will have a trailing instance of OUTSEP.
 # CAVEATS:
 #   - NOT LOCALE-AWARE on OSX: both awk and sort do not deal properly with UTF-8 encoded non-ASCII characters.
-#   - This function is expensive, because external utilities are called multiple times: to tokenize the input, sort it, and to compare.
+#   - This function is expensive, because external utilities are called multiple times: to tokenize, sort, and compare
 # EXAMPLES:
 #   intersection hello world '' # -> 'lo' (the sorted list of chars. that 'hello' and 'world' have in common)
 intersection() {
@@ -127,29 +127,32 @@ DESCRIPTION
    - Either by specifying a single directory (the current one by default)
      whose *content* to filter.
    - Or, as the result of globbing on the command line, by specifying multiple
-     items *all from the same parent directory* to *filter themselves*.
+     items *all from the same parent directory* to filter *themselves*.
+     Unlike with ls, matching items are always printed by filename only, with
+     a path component, if any, removed.
   Also, to allow use of a single utility in both filtering and non-filtering
   scenarios, specifying a filter is *optional* and not specifying one makes
-  $kTHIS_NAME behave like ls, within the constraints noted above.
+  $kTHIS_NAME behave like ls, within the constraints noted.
 
   options-for-ls
     Options to pass through to ls, such as -l to list in long format.
-    Note that *option -d is implictly always used*; that is, subdirectories
-    are always filtered and printed as themselves, and their content is 
-    neither examined nor printed.
 
   dir
     A *single* directory whose items (files and subdirectories) to filter;
     defaults to . (the current directory).
   
-  fileOrDir ...
+  fileOrDir...
     A list of files and/or subdirectories *from a single parent directory*
     to which to apply filtering *directly*.
     Typically, this list will come from a pathname expansion (globbing)
     on the command line.
+    Note that, unlike with ls, option -d is implictly for multiple operands; 
+    that is, (sub)directories among the operands are always filtered and
+    printed as themselves, and their content is neither examined nor printed.
     CAVEAT: If a glob happens to expand to a *single directory*, this utility
     will instead target that directory's *content*, as if a single directory
     had been explicitly specified - it cannot tell the difference.
+    When in doubt, use -d explicitly.
 
   filter
     A string of one or more filter characters, optionally grouped by negation.
@@ -157,17 +160,17 @@ DESCRIPTION
     must meet ALL criteria.
     A ^ preceding one or more characters negates their logic; only one ^
     is allowed.
-    Using just a - (hyphen) explicitly indicates that *no* filtering should
-    be applied at all.
+    Specifying just '--' explicitly indicates that *no* filtering should be
+    performed at all.
 
     For convenience and to facilitate definition of aliases, the filter may be
     placed before or after the options to pass to ls, if any.
     A first operand that is not a valid filter is considered a file operand
-    instead; i.e., no filter is applied, and all operands are considered file/
-    directory names or paths.
-    To unambiguously specify a filter, either:
-     - either: place it before options; e.g.: $kTHIS_NAME d -l [...]
-     - or: follow it with '--'; e.g.: $kTHIS_NAME d -- [...]
+    instead. If what you intended as a filter is treated as a (non-existent)
+    file instead, the implicication is that the filter is invalid; to see the
+    specific reason, specify the filter unambiguously as such, by:
+     - either: placing it before options; e.g.: $kTHIS_NAME d -l [...]
+     - or: following it with '--'; e.g.: $kTHIS_NAME -l d -- [...]
     Conversely, to explicitly request unfiltered output, use '--'
     as the first operand; e.g.: $kTHIS_NAME -- [...]
 
@@ -232,20 +235,18 @@ EXAMPLES
     # List all empty directories in the current dir.
   $kTHIS_NAME d^s
     # Use without filters:
-  $kTHIS_NAME        # same as ls
-  $kTHIS_NAME -lt ~  # same as ls -lt ~
+  $kTHIS_NAME           # same as ls
+  $kTHIS_NAME -lt ~     # same as ls -lt ~
+  $kTHIS_NAME -lt -- ~  # ditto, explicitly requesting unfiltered output
 EOF
     exit 0
 fi
 
-# NOTE: Note that the filter expression, if specified, must be the VERY FIRST ARGUMENT,
-#       even before the options to pass through to ls.
-#       While nonstandard, this allows defining aliases such as `alias lsexe='fls xf' and reduces ambiguity.
-declare filterExpr= firstArgWasOperand=0 unambiguousFilter=0 unfiltered=0 includeHidden includeDotAndDotDot
+declare filterExpr= firstArgWasOperand=0 unambiguousFilter=0 unfiltered=0 includeHidden=0 includeDotAndDotDot=0 listDirItself=0
 
 # All options will be passed through to `ls`, however, we need to determine 
 # if the option to include hidden entries was specified (-a or -A), because 
-# we need to perform our internal globbing accordingly.
+# we need to perform our internal globbing accordingly, and also whether -d was specified.
 # Also, we allow GNU-style mixing of options and operands, but pass all options *before* operands when invoking ls, as the latter may
 # not support mixing, e.g., on OSX. 
 declare -a optsForLs=()
@@ -278,6 +279,9 @@ while (( $# )); do
           A|almost-all)
             includeHidden=1
             ;;
+          d|directory)
+            listDirItself=1
+            ;;
         esac
         # ---- END: CUSTOMIZE HERE
         (( needOptArg )) && { (( ! haveOptArgAttached && ! haveOptArgAsNextArg )) && dieSyntax "Option ${prefix}${optName} is missing its argument." || (( haveOptArgAsNextArg )) && shift; }
@@ -306,15 +310,20 @@ done
 (( "${#operands[@]}" > 0 )) && set -- "${operands[@]}"; unset operands argNdx i optName isLong prefix optArgAttached haveOptArgAttached haveOptArgAsNextArg acceptOptArg needOptArg
 # ----- END: OPTIONS PARSING: "$@" now contains all operands (non-option arguments).
 
-# A filter can be unambigously specified in two ways:
-#  - following the first operand (the filter) with '--' (handled above)
-#  - specifying it as the very first argument followed by options.
-(( firstArgWasOperand && ${#optsForLs[@]} > 0 )) && unambiguousFilter=1 # first operand is also first argument -> unambiguously a filter
+# Unfiltered output can be requested in 2 ways:
+#  - specifying '--' as the first operand (non-option argument): handled above
+#  Not specifying any operands at all.
+(( $# == 0 )) && unfiltered=1
 
 # PARSE THE (PRESUMPTIVE) FILTER EXPRESSION, if any.
 if (( ! unfiltered )); then
 
-  # Proceed on the knowledge (unambiguousFilter == 1) or assumption that the 
+  # A filter can be unambiguously specified in two ways:
+  #  - following the first operand (the filter) with '--' (handled above)
+  #  - specifying it as the very first argument followed by options.
+  (( firstArgWasOperand && ${#optsForLs[@]} > 0 )) && unambiguousFilter=1 # first operand is also first argument -> unambiguously a filter
+
+  # Proceed on either the knowledge (unambiguousFilter == 1) or assumption that the 
   # first operand is the filter expression.
   filterExpr=$1; shift
 
@@ -345,8 +354,10 @@ if (( ! unfiltered )); then
     kFILE_TEST_OPERATORS=( b c d f g h k p r s u w x G L N O S )
     # Of these, the following can be combined with 'f' or 'd' to distinguish between files and directories:
     # Note that -s  (nonzero size) only has meaning for files, because even empty directories have nonzero size;
-    # we extend the nonempty semantics to directories with our own implementation.
+    # however, we extend the nonempty semantics to directories with our own implementation.
     kFILE_TEST_OPERATORS_FILE_VS_DIR_FILTERABLE=( g h k r s u w x G L N O )
+    # Of these, those that pertain to special filesystem items, but not including symlinks.
+    kFILE_TEST_OPERATORS_SPECIAL=( b c p S )
 
     # Split into positive and negative filters, if specified.
     declare filterChars=${filterExpr//^/} posFilterChars= negFilterChars= 
@@ -356,7 +367,7 @@ if (( ! unfiltered )); then
 
     else # negation operator present -> both positive and negative filters
 
-      (( ${#filterExpr} - ${#filterChars} == 1 )) || { errMsg='You may only specify the negation operator ^ once.'; break; }
+      (( ${#filterExpr} - ${#filterChars} == 1 )) || { errMsg='You may only specify ^, the negation operator, once.'; break; }
       # Split the filters into positives (pre-'^') and negatives (post-'^')
       posFilterChars=${filterExpr%^*}
       negFilterChars=${filterExpr#*^}
@@ -387,7 +398,7 @@ if (( ! unfiltered )); then
     [[ -n $posFilterChars ]] && IFS=$'\n' read -d '' -ra posFileTestOps <<<"$(awk 'BEGIN { FS="" } { for(i=1;i<=NF;++i) print $i  }' <<<"$posFilterChars")"
     [[ -n $negFilterChars ]] && IFS=$'\n' read -d '' -ra negFileTestOps <<<"$(awk 'BEGIN { FS="" } { for(i=1;i<=NF;++i) print $i  }' <<<"$negFilterChars")"
 
-    # See if a files-only or directoy-only filter was (also) specified.
+    # See if a files-only or directory-only filter was (also) specified.
     declare -i filesOnly dirsOnly nonFilesOnly nonDirsOnly
     isIn 'f' "${posFileTestOps[@]}" && filesOnly=1 || filesOnly=0
     isIn 'd' "${posFileTestOps[@]}" && dirsOnly=1 || dirsOnly=0
@@ -396,6 +407,11 @@ if (( ! unfiltered )); then
     # Make sure that no attempt is made to filter by both files AND directories - these filters are mutually exclusive.
     # Note: We still could have 'f' among the pos. filters, and 'd' among the negatives, and vice versa - while redundant, this does no harm.
     (( (filesOnly && dirsOnly) || (nonFilesOnly && nonDirsOnly) )) && { errMsg='Please specify EITHER "f" OR "d"; specify neither to match files AND directories.'; break; }
+
+    # Note:
+    #  Combining listDirItself (-d with a single dir) typically requires no filter,
+    #  and technically makes sense with only a few; 'f', for instance, makes no sense.
+    #  
 
     # Make sure that no unknown and no incompatible filters were specified.
     allFileTestOps=( "${posFileTestOps[@]}" "${negFileTestOps[@]}" )
@@ -466,28 +482,31 @@ shopt -u failglob; shopt -s nullglob
 candidateFiles=()
 if [[ $# -eq 0 || ($# -eq 1 && -d "$1") ]]; then # a single dir. or no file operands specified at all, implying the current dir.
 
-  if [[ -n $1 ]]; then
-    # Switch to dir. *before globbing* with just *, which
-    # we must do in order to obtain *filenames only*.
-    cd -- "$1" || die
-  fi
+  if (( listDirItself )); then  # list information about the directory *itself* (as opposed to its contents)
+    candidateFiles=( "${1:-.}" )
+  else                          # list information about the directory's *contents*
+    if [[ -n $1 ]]; then
+      # Switch to dir. *before globbing* with just *, which
+      # we must do in order to obtain *filenames only*.
+      cd -- "$1" || die
+    fi
 
-  # If -a (--all) was specified, we have to include . and ..
-  if (( includeDotAndDotDot )); then
-    # Sadly, * does NOT include . ad .. and we canNOT blindly assume that . and .. are the FIRST 2 entries, as names such as '#file'
-    # would sort before them. The pragmatic solution is to use `ls -a1` to get all entries, even though that means
-    # that filenames with embedded newlines won't be handled properly.
-    IFS=$'\n' read -d '' -ra candidateFiles <<EOF
+    # If -a (--all) was specified, we have to include . and ..
+    if (( includeDotAndDotDot )); then
+      # Sadly, * does NOT include . ad .. and we canNOT blindly assume that . and .. are the FIRST 2 entries, as names such as '#file'
+      # would sort before them. The pragmatic solution is to use `ls -a1` to get all entries, even though that means
+      # that filenames with embedded newlines won't be handled properly.
+      IFS=$'\n' read -d '' -ra candidateFiles <<EOF
 $(ls -a1)
 EOF
-  else
-    # Get all items in the dir by globbing (which will return filenames only).
-    candidateFiles=( * )
+    else
+      # Get all items in the dir by globbing (which will return filenames only).
+      candidateFiles=( * )
+    fi
   fi
 
-else # *multiple* file operands given - typically the result of globbing on the command line - or, atypically, a single *file*
+else # *multiple* file operands given - typically the result of globbing on the command line - or, atypically, a single *file*, or a non-existing path
 
-  # In addition to ensuring that all operands must exist,
   # WE MUST MAKE SURE THAT ALL OPERANDS ARE ITEMS FROM THE SAME PARENT DIRECTORY.
   # Note that a true, robust determination accounting for variations in case
   # non-normalized paths, ... would be non-trivial, but is overkill here,
@@ -514,7 +533,15 @@ else # *multiple* file operands given - typically the result of globbing on the 
 
   # Switch to dir., since we'll be passing *mere filenames* to `ls` later.
   # We simply use the first operand, given that we've verified above that all operands are from the same dir.
-  cd -- "$(dirname -- "$1")" || die
+  targetDir=$(dirname -- "$1")
+  if [[ -d "$targetDir" ]]; then
+    cd -- "$targetDir" || die
+  else # target dir. doesn't exist
+    # !! Since we want ls to report errors, we simply pass the original paths through, knowing that none of them
+    # !! will exist (since we've ensure that all have the same dir. path and that path doesn't exist) and ls will
+    # !! report them as errors.
+    candidateFiles=( "$@" )
+  fi
 
 fi
 

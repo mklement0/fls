@@ -10,25 +10,26 @@ PATH=${PWD%%/test*}/bin:$PATH
 
 # Files (f) that are not (^) non-empty (s) (i.e., that *are* empty).
 echo "Files that are not nonempty (are empty):"
-diff <(fls f^s ../.fixtures/testdir) - <<'EOF'
+diff <(fls f^s ../.fixtures/testdir) - <<'EOF' || exit
 c
 two (2)
 EOF
 
 # Files (f) that are nonempty (s), but not (^) symlinks.
 echo "Files that are nonempty and not symlinks:"
-diff <(fls fs^L ../.fixtures/testdir) - <<'EOF'
+diff <(fls fs^L ../.fixtures/testdir) - <<'EOF' || exit
 one
 EOF
 
 # Files or folders that are nonempty (s), but neither files (f) nor symlinks (L)
 echo "Items that are nonempty and neither files nor symlinks:"
-diff <(fls s^fL ../.fixtures/testdir) - <<'EOF'
+diff <(fls s^fL ../.fixtures/testdir) - <<'EOF' || exit
 subd
 EOF
 
-# Files (f) that are readable(r) but neither (^) nonempty(s) nor writable(w) - in other words: both empty and non-writable.
-echo "Files that are redable and not nonempty (i.e., empty) and not writable:"
-diff <(fls fr^sw ../.fixtures/testdir) - <<'EOF'
+# Files (f) that are readable (r) but neither (^) nonempty(s) nor writable (w) - in other words: both empty and non-writable.
+chmod -w ../.fixtures/testdir/'two (2)' # to be sure, let's make sure the test file is not writable.
+echo "Files that are readable, not nonempty (i.e., empty), and not writable:"
+diff <(fls fr^sw ../.fixtures/testdir) - <<'EOF' || exit
 two (2)
 EOF

@@ -8,7 +8,5 @@
 # ---
 PATH=${PWD%%/test*}/bin:$PATH
 
-# None of these should succeed.
-
-fls - ../.fixtures/testdir/dead-symlink # should succeed
+fls -- ../.fixtures/testdir/dead-symlink # should succeed
 

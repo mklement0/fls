@@ -9,20 +9,21 @@
 PATH=${PWD%%/test*}/bin:$PATH
 
 # Symlinks, whether to a file or dir.
-echo "Symlinks, whether to a file or dir:"
-diff <(fls L ../.fixtures/testdir) - <<EOF
+echo "Symlinks, whether to a file or dir or dead:"
+diff <(fls L ../.fixtures/testdir) - <<EOF || exit
+dead-symlink
 onel
 subdl
 EOF
 
 # Symlinks to *files*.
 echo "Symlinks to files:"
-diff <(fls Lf ../.fixtures/testdir) - <<EOF
+diff <(fls Lf ../.fixtures/testdir) - <<EOF || exit
 onel
 EOF
 
 # Symlinks to *dirs*.
 echo "Symlinks to dirs.:"
-diff <(fls Ld ../.fixtures/testdir) - <<EOF
+diff <(fls Ld ../.fixtures/testdir) - <<EOF || exit
 subdl
 EOF

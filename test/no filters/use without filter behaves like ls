@@ -8,15 +8,18 @@
 # ---
 PATH=${PWD%%/test*}/bin:$PATH
 
-echo "No filter by default:"
-diff <(fls ../.fixtures/testdir) <(\ls ../.fixtures/testdir)
+echo "No arguments at all"
+(cd ../.fixtures/testdir && diff <(fls) <(\ls))  || exit
+
+echo "No filter, implied:"
+diff <(fls ../.fixtures/testdir) <(\ls ../.fixtures/testdir) || exit
 
 # Same, but with explicit no-filter operator.
-echo "No filter with explicit no-filter expression, '-':"
-diff <(fls - ../.fixtures/testdir) <(\ls ../.fixtures/testdir)
+echo "No filter, explicit:"
+diff <(fls -- ../.fixtures/testdir) <(\ls ../.fixtures/testdir) || exit
 
 # Multiple file operands.
 # Note: With multiple *paths* (not just filenames), fls' behavior differs from ls' in that it fls always outputs *filenames* only, whereas ls outputs paths (as specified) in this case.
 #       Therefore, we change to the target dir. first.
 echo "No filter with explicit no-filter expression, '-', and multiple file operands:"
-(cd ../.fixtures/testdir && diff <(fls - onel one) <(\ls onel one))
+(cd ../.fixtures/testdir && diff <(fls -- onel one) <(\ls onel one))  || exit

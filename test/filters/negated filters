@@ -8,13 +8,17 @@
 # ---
 PATH=${PWD%%/test*}/bin:$PATH
 
-# Matching non-directories should result in the same as matching files.
-echo "The set of non-directories matches the set of files:"
-diff <(fls ^d ../.fixtures/testdir) <(fls f ../.fixtures/testdir)
+echo "The set of non-directories matches the set of files + the dead symlink"
+diff <(fls ^d ../.fixtures/testdir) - <<'EOF' || exit
+c
+dead-symlink
+one
+onel
+two (2)
+EOF
 
-# Two AND-ed negative filters: NEITHER a directory NOR a symlink
 echo "Items that are NOT a directory and NOT a symlink (i.e., neither a directory nor a symlink)"
-diff <(fls ^dL ../.fixtures/testdir) - <<'EOF'
+diff <(fls ^dL ../.fixtures/testdir) - <<'EOF' || exit
 c
 one
 two (2)

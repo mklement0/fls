@@ -6,10 +6,10 @@
 **Contents**
 
 - [fls &mdash; Introduction](#fls-&mdash-introduction)
+- [Examples](#examples)
 - [Installation](#installation)
   - [From the npm registry](#from-the-npm-registry)
   - [Manual installation](#manual-installation)
-- [Examples](#examples)
 - [Usage](#usage)
 - [License](#license)
   - [Acknowledgements](#acknowledgements)
@@ -36,32 +36,11 @@ The following example lists only subdirectories in the current directory, in lon
 
 * `alias lsbin='fls fx'`
 
-See [examples](#examples) or complete [usage information](#usage).
+A general `ls` replacement with fixed options, to which you may optionally pass filters as the first operand:
 
+* `alias lsx='fls -FAhl'`
 
-# Installation
-
-**Supported platforms**
-
-* When installing from the **npm registry**: **Linux** and **OSX**
-* When installing **manually**: any **Unix-like** platform with **Bash** 
-
-## From the npm registry
-
-With [Node.js](http://nodejs.org/) or [io.js](https://iojs.org/) installed, install [the package](https://www.npmjs.com/package/fls) as follows:
-
-    [sudo] npm install fls -g
-
-**Note**:
-
-* Whether you need `sudo` depends on how you installed Node.js / io.js and whether you've [changed permissions later](https://docs.npmjs.com/getting-started/fixing-npm-permissions); if you get an `EACCES` error, try again with `sudo`.
-* The `-g` ensures [_global_ installation](https://docs.npmjs.com/getting-started/installing-npm-packages-globally) and is needed to put `fls` in your system's `$PATH`.
-
-## Manual installation
-
-* Download [this `bash` script](https://raw.githubusercontent.com/mklement0/fls/stable/bin/fls) as `fls`.
-* Make it executable with `chmod +x fls`.
-* Move it or symlink it to a folder in your `$PATH`, such as `/usr/local/bin` (OSX) or `/usr/bin` (Linux).
+See examples below and complete [usage information](#usage) further below.
 
 # Examples
 
@@ -89,6 +68,31 @@ fls        # same as ls
 fls -lt ~  # same as ls -lt ~
 ```
 
+# Installation
+
+**Supported platforms**
+
+* When installing from the **npm registry**: **Linux** and **OSX**
+* When installing **manually**: any **Unix-like** platform with **Bash** 
+
+## From the npm registry
+
+With [Node.js](http://nodejs.org/) or [io.js](https://iojs.org/) installed, install [the package](https://www.npmjs.com/package/fls) as follows:
+
+    [sudo] npm install fls -g
+
+**Note**:
+
+* Whether you need `sudo` depends on how you installed Node.js / io.js and whether you've [changed permissions later](https://docs.npmjs.com/getting-started/fixing-npm-permissions); if you get an `EACCES` error, try again with `sudo`.
+* The `-g` ensures [_global_ installation](https://docs.npmjs.com/getting-started/installing-npm-packages-globally) and is needed to put `fls` in your system's `$PATH`.
+
+## Manual installation
+
+* Download [this `bash` script](https://raw.githubusercontent.com/mklement0/fls/stable/bin/fls) as `fls`.
+* Make it executable with `chmod +x fls`.
+* Move it or symlink it to a folder in your `$PATH`, such as `/usr/local/bin` (OSX) or `/usr/bin` (Linux).
+
+
 # Usage
 
 <!-- DO NOT EDIT THE FENCED CODE BLOCK and RETAIN THIS COMMENT: The fenced code block below is updated by `make update-readme/release` with CLI usage information. -->
@@ -97,8 +101,8 @@ fls -lt ~  # same as ls -lt ~
 $ fls --help
 
 SYNOPSIS
-  fls [filters] [options-for-ls] [dir]
-  fls [filters] [options-for-ls] fileOrDir ...
+  fls [filter] [options-for-ls] [dir]
+  fls [filter] [options-for-ls] fileOrDir...
 
 DESCRIPTION
   A type-filtering wrapper for the ls utility.
@@ -108,7 +112,9 @@ DESCRIPTION
    - Either by specifying a single directory (the current one by default)
      whose *content* to filter.
    - Or, as the result of globbing on the command line, by specifying multiple
-     items *all from the same parent directory* to *filter themselves*.
+     items *all from the same parent directory* to filter *themselves*.
+     Unlike with ls, matching items are printed by filename only, with any
+     path component removed.
   Also, to allow use of a single utility in both filtering and non-filtering
   scenarios, specifying a filter is *optional* and not specifying one makes
   fls behave like ls, within the constraints noted above.
@@ -132,20 +138,25 @@ DESCRIPTION
     will instead target that directory's *content*, as if a single directory
     had been explicitly specified - it cannot tell the difference.
 
-  filters
+  filter
     A string of one or more filter characters, optionally grouped by negation.
     AND logic is implicitly applied to multiple filters; i.e., matching items
     must meet ALL criteria.
-    A ^ preceding one or more characters negates their logic; Only one ^
+    A ^ preceding one or more characters negates their logic; only one ^
     is allowed.
     Using just a - (hyphen) explicitly indicates that *no* filtering should
     be applied at all.
 
-    Note that the filters argument, if specified, must always come *first*,
-    even before any options for ls. This reduces ambiguity and facilitates
-    definition of aliases (see below).
-    To avoid ambiguity when no options are specified at all, use - as the
-    first argument.
+    For convenience and to facilitate definition of aliases, the filter may be
+    placed before or after the options to pass to ls, if any.
+    A first operand that is not a valid filter is considered a file operand
+    instead; i.e., no filter is applied, and all operands are considered file/
+    directory names or paths.
+    To unambiguously specify a filter, either:
+     - either: place it before options; e.g.: fls d -l [...]
+     - or: follow it with '--'; e.g.: fls d -- [...]
+    Conversely, to explicitly request unfiltered output, use '--'
+    as the first operand; e.g.: fls -- [...]
 
     Filter characters correspond to *Bash's file-test operators*; common ones
     are listed below; for the full list, see CONDITIONAL EXPRESSIONS in
@@ -154,6 +165,8 @@ DESCRIPTION
     f, d
       Matches a file / directory; note that for symlinks the type of their
       *target* is matched.
+      Caveat: This means that if a symlink points to a non-existing target,
+      neither filter will match it; only L by itself will output such symlinks.
     
     x
       Matches an executable file or searchable directory; add f or d to

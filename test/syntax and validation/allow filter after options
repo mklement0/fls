@@ -8,4 +8,8 @@
 # ---
 PATH=${PWD%%/test*}/bin:$PATH
 
-fls -l f . && exit 1 || : # this shouldn't succeed
+echo 'implicit filter'
+fls -l f . || exit
+
+echo 'explicit filter'
+fls -l f -- . || exit

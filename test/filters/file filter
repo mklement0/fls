@@ -8,7 +8,7 @@
 # ---
 PATH=${PWD%%/test*}/bin:$PATH
 
-diff <(fls f ../.fixtures/testdir) - <<EOF
+diff <(fls f ../.fixtures/testdir) - <<EOF || exit
 c
 one
 onel

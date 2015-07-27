@@ -8,10 +8,16 @@
 # ---
 PATH=${PWD%%/test*}/bin:$PATH
 
+echo "Error message about non-existing item is ultimately reported by ls, implied non-filter."
+diff <(fls nosuch 2>&1) <(ls nosuch 2>&1) || exit
+
+echo "Error message about non-existing item is ultimately reported by ls, explicit non-filter."
+diff <(fls -- nosuch 2>&1) <(ls nosuch 2>&1) || exit
+
 # None of these should succeed.
 
 echo "Non-existing implicit file operand:"
-fls nosuch && exit 1 ||
+fls nosuch && exit 1 || :
 
 echo "Non-existing 2nd file operand:"
 fls . other/nosuch && exit 1 || :
@@ -20,7 +26,7 @@ echo "Non-existing implicit file operands:"
 fls /nosuch1 /nosuch2 && exit 1 || :
 
 echo "Non-existing explicit file operand:"
-fls - nosuch && exit 1 || :
+fls -- nosuch && exit 1 || :
 
 echo "Non-existing explicit file operands:"
-fls - /nosuch1 /nosuch2 && exit 1 || :
+fls -- /nosuch1 /nosuch2 && exit 1 || :

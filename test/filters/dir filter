@@ -8,7 +8,10 @@
 # ---
 PATH=${PWD%%/test*}/bin:$PATH
 
-diff <(fls d ../.fixtures/testdir) - <<EOF
+# Make sure empty dir. exists (Git will not store it.)
+mkdir -p ../.fixtures/testdir/subd-empty
+
+diff <(fls d ../.fixtures/testdir) - <<EOF || exit
 subd
 subd-empty
 subdl
