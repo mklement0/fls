@@ -13,7 +13,7 @@ PATH=${PWD%%/test*}/bin:$PATH
 # and causes this test to fail.
 # See https://github.com/tlevine/urchin.
 
-fls --version | egrep -w '[[:digit:]]+\.[[:digit:]]+\.[[:digit:]]+' && exit 0
+fls --version | grep -Ew 'v?[[:digit:]]+\.[[:digit:]]+\.[[:digit:]]+' && exit 0
 
 echo "ERROR: No semver-compliant version number detected in the output." >&2
 exit 1
