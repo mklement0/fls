@@ -1,4 +1,4 @@
-.TH "FLS" "1" "September 2015" "v0.2.3" ""
+.TH "FLS" "1" "September 2015" "v0.3.0" ""
 .SH "NAME"
 \fBfls\fR \- type\-filtering wrapper around ls
 .SH SYNOPSIS
@@ -18,14 +18,15 @@ fls [<filter>] [<options\-for\-ls>] <fileOrDir>\.\.\.
 .nf
 f       file or symlink to file
 d       dir or symlink to dir
-L       symlink
+l       symlink
 x       executable file / searchable dir\. (by you)
+e       empty file (zero bytes) or empty dir\. (no files or subdirs\.)
 .fi
 .RE
 .P
 Filters are combined with logical AND, and filters placed after \fB^\fP are negated\.
 .br
-E\.g\., \fBfls fx^L\fP lists executable files that aren't symlinks\.
+E\.g\., \fBfls fx^l\fP lists executable files that aren't symlinks\.
 .SH DESCRIPTION
 .P
 \fBfls\fP is a wrapper around the \fBls\fP utility that enables listing filesystem
@@ -128,62 +129,105 @@ When in doubt, use \fB\-d\fP explicitly\.
 .IP \(bu 2
 \fB<filter>\fP
 .br
-A string of one or more filter characters, optionally grouped by negation\.
+A filter expression to apply to the set of input files an subdirs so that
+.br
+only items matching the filter are output\.
+.br
+A filter expression is composed of a string of one or more filters, each
+.br
+of which is represented by a single character detailed in the next chapter\.
 .br
 AND logic is implicitly applied to multiple filters; i\.e\., matching items
 .br
 must meet ALL criteria\.
 .br
-A \fB^\fP preceding one or more characters negates their logic; only one \fB^\fP
+A \fB^\fP preceding one or more filters negates their logic; only one \fB^\fP
 .br
 is allowed\.
 .br
 Specifying just \fB\-\-\fP explicitly indicates that \fIno\fR filtering should be
 .br
 performed at all\.
-Filter characters correspond to Bash's file\-test operators; common ones
-.br
-are listed below; for the full list, see CONDITIONAL EXPRESSIONS in
-.br
-\fBman bash\fP\|\.
-.RS 0
-.IP \(bu 2
-\fBf, d\fP
-.br
-match a file / directory; note that for symlinks the type of their
-.br
-\fItarget\fR is matched\.  
-.IP \(bu 2
-\fBx\fP
-.br
-matches an executable file or searchable directory; add \fBf\fP or \fBd\fP to
-distinguish\.
-.IP \(bu 2
-\fBL\fP or \fBh\fP
-.br
-matches a symlink\. Add \fBf\fP or \fBd\fP to distinguish between symlinks to
-.br
-files and those to directories\.
-.br
-Use \fBL^fdbcpS\fP to find broken symlinks\.
-.IP \(bu 2
-\fBs\fP
-.br
-matches a nonempty file (nonzero\-byte file) or nonempty directory
-.br
-Add \fBf\fP or \fBd\fP to distinguish\. Note: bash's \fB\-s\fP test operator only
-.br
-operates meaningfully on files, not directories, but this utility
-.br
-extends the "nonempty" semantics to refer to directories that contain
-.br
-at least one item (whether hidden or not)\.
-.IP \(bu 2
-\fBr\fP, \fBw\fP
-.br
-match a file or directory that the current user can read / write\.
 
 .RE
+.SH FILTERS
+.P
+Individual filters are characters that are a subset of the type\-identifying
+.br
+chars\. accepted by \fBfind\fP\|'s \fB\-type\fP primary and Bash's file\-test
+.br
+operators, with some custom modifications and extensions, where noted\.
+.P
+Note that with the exception of \fBl\fP, all tests are applied to the targets of
+.br
+symlinks, not the symlinks themselves\.
+.SS TYPE Filters
+.RS 0
+.IP \(bu 2
+\fBf\fP matches a regular file\.
+.IP \(bu 2
+\fBd\fP matches a directory\.
+.IP \(bu 2
+\fBl\fP matches a symlink; add \fBf\fP or \fBd\fP to distinguish between symlinks to
+.br
+files and those to directories; see the TIPS chapter for how to find
+.br
+broken symlinks\.
+.br
+NOTE: The equivalent Bash operators are \fBL\fP or \fBh\fP, which are also
+.br
+accepted\.
+.IP \(bu 2
+\fBb\fP, \fBc\fP, \fBp\fP, \fBs\fP match a block special file, character special file,
+.br
+a named pipe (FIFO), and a socket, respectively\.
+.br
+NOTE: Bash uses \fBS\fP to test for a socket, and \fBs\fP to test for nonempty
+.br
+files; this utility instead uses \fBe\fP to test for emptiness \- see below\.
+.br
+\fBS\fP is, however, also accepted by this utility to test for sockets\.
+
+.RE
+.SS ATTRIBUTE Filters
+.RS 0
+.IP \(bu 2
+\fBx\fP matches a file that the current user can execute or a directory that
+.br
+the current user can search; add \fBf\fP or \fBd\fP to distinguish\.
+.IP \(bu 2
+\fBe\fP matches an empty file (zero bytes) or empty directory; add \fBf\fP or \fBd\fP
+.br
+to distinguish\. A directory is only considered empty if it truly contains
+.br
+no items, whether hidden or not\.
+.br
+NOTE: Bash offers operator \fB\-s\fP, which uses opposite semantics (test for
+.br
+non\-emptiness) and applies to files only; using \fBs\fP that way is NOT
+.br
+supported by this utility, because it clashes with using \fBs\fP to test for
+.br
+a socket, but you can use \fBf^e\fP to emulate it\.
+.IP \(bu 2
+\fBr\fP, \fBw\fP matches a file or directory that the current user can read / write\.
+
+.RE
+.P
+The following, less common Bash filters are supported as well:
+.RS 0
+.IP \(bu 2
+\fBu\fP matches if the item's set\-user\-id permissions bit is set\.
+.IP \(bu 2
+\fBg\fP matches if the item's set\-group\-id permissions bit is set\.
+.IP \(bu 2
+\fBk\fP matches if the item's sticky permissions bit is set\.
+.IP \(bu 2
+\fBG\fP matches if the item is owned by the effective group ID\.
+.IP \(bu 2
+\fBN\fP matches if the item has been modified since it was last read\.
+.IP \(bu 2
+\fBO\fP matches if the item is owned by the effective user ID\.
 
 .RE
 .SH TIPS
@@ -209,6 +253,14 @@ fls d \.*  # show hidden subdirs\.
 .fi
 .RE
 .P
+To find broken (dangling) symlinks, use:
+.P
+.RS 2
+.nf
+fls l^fdbcps
+.fi
+.RE
+.P
 Since remembering filter characters can be a challenge, you can define
 .br
 aliases; e\.g\.:
@@ -222,6 +274,7 @@ alias lsln='fls L'    # list symlinks
 .RE
 .P
 The following alias wraps \fBfls\fP with a set of useful \fBls\fP options, such as
+.br
 including hidden items and using human\-friendly file sizes:
 .P
 .RS 2
@@ -251,24 +304,24 @@ fls f \.*
 fls d /
 
   # List all symlinks to files in the current dir\.
-fls Lf
+fls lf
 
   # List all executable files matching c* in /usr/local/bin
 fls xf /usr/local/bin/c*
 
   # List all empty (zero bytes) files in the current dir\.
-fls f^s
+fls fe
 
   # List all empty subdirs\. in the current dir\.
-fls d^s
+fls de
 
   # Find broken symlinks in the current dir\.
-fls L^fdbcpS
+fls l^fdbcps
 
   # Use without filters\.
-fls           # same as ls
-fls \-lt ~     # same as ls \-lt ~
-fls \-lt \-\- ~  # ditto, explicitly requesting unfiltered output
+fls         # same as ls
+fls \-lt ~   # same as ls \-lt ~
+fls \-\- pg   # same as ls pg, \-\- unambiguously marks pg as file operand
 .fi
 .RE
 

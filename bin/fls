@@ -4,14 +4,14 @@
 
 kTHIS_HOMEPAGE='https://github.com/mklement0/fls'
 kTHIS_NAME=${BASH_SOURCE##*/}
-kTHIS_VERSION='v0.2.3' # NOTE: This assignment is automatically updated by `make version VER=<newVer>` - DO keep the 'v' prefix.
+kTHIS_VERSION='v0.3.0' # NOTE: This assignment is automatically updated by `make version VER=<newVer>` - DO keep the 'v' prefix.
 
 unset CDPATH  # To prevent unexpected `cd` behavior.
 
 # --- Begin: STANDARD HELPER FUNCTIONS
 
 die() { echo "$kTHIS_NAME: ERROR: ${1:-"ABORTING due to unexpected error."}" 1>&2; exit ${2:-1}; }
-dieSyntax() { echo "$kTHIS_NAME: ARGUMENT ERROR: ${1:-"Invalid argument(s) specified."} Use -h for help." 1>&2; exit 2; }
+dieSyntax() { echo "$kTHIS_NAME: ARGUMENT ERROR: ${1:-"Invalid argument(s) specified."} Use \`$kTHIS_NAME -h\` for help." 1>&2; exit 2; }
 
 # SYNOPSIS
 #   openUrl <url>
@@ -103,24 +103,6 @@ esac
 
 # --- BEGIN: Functions
 
-# Helper function for exiting with error message due to runtime error.
-#   die [errMsg [exitCode]]
-# Default error message states context and indicates that execution is aborted. Default exit code is 1.
-# Prefix for context is always prepended.
-# Note: An error message is *always* printed; if you just want to exit with a specific code silently, use `exit n` directly.
-die() {
-  echo "$kTHIS_NAME: ERROR: ${1:-"ABORTING due to unexpected error."}" 1>&2
-  exit ${2:-1} # Note: If the argument is non-numeric, the shell prints a warning and uses exit code 255.
-}
-
-# Helper function for exiting with error message due to invalid arguments.
-#   dieSyntax [errMsg]
-# Default error message is provided, as is prefix and suffix; exit code is always 2.
-dieSyntax() {
-  echo "$kTHIS_NAME: ARGUMENT ERROR: ${1:-"Invalid argument(s) specified."} Use --help for help." 1>&2
-  exit 2
-}
-
 # SYNOPSIS
 #     indexOf needle "${haystack[@]}"
 # *Via stdout*, returns the zero-based index of a string element in an array of strings or -1, if not found.
@@ -159,6 +141,15 @@ intersection() {
   [[ $sep == $'\n' ]] && sep='\n'
   [[ $outsep == $'\n' ]] && outsep='\n'
   comm -12 <(awk 'BEGIN { FS="'"$sep"'" } { for(i=1;i<=NF;++i) print $i }' <<<"$list1" | sort) <(awk 'BEGIN { FS="'$sep'" } { for(i=1;i<=NF;++i) print $i }' <<<"$list2" | sort) | awk -v ORS="$outsep" '1'
+}
+
+# SYNOPSIS
+#   charInstanceCount <char> <text>
+# DESCRIPTION
+#   Counts the number of instances of <char> in <text>.
+charInstanceCount() {
+  local instances=$(tr -Cd "${1:0:1}" <<<"$2")
+  echo "${#instances}"
 }
 
 # SYNOPSIS
@@ -328,29 +319,55 @@ if (( ! unfiltered )); then
     kFILE_TEST_OPERATORS_TYPES=( f d b c p S )
     # The symlink ID chars.
     kFILE_TEST_OPERATORS_SYMLINK=( h L )
-    # The supplemental operators that can apply to any of the fundamental types (but NOT to a symlink itself)
+    # The supplemental operators that can apply to any of the fundamental types (but NOT to a symlink itself - Bash apparently always applies them to the symlink *target*)
     kFILE_TEST_OPERATORS_ATTRIBUTES=( g k r s u w x G N O )
     # All operators.
     kFILE_TEST_OPERATORS=( "${kFILE_TEST_OPERATORS_TYPES[@]}" "${kFILE_TEST_OPERATORS_SYMLINK[@]}" "${kFILE_TEST_OPERATORS_ATTRIBUTES[@]}" )
+    #
+    # Our custom operators, which we'll map onto Bash's below.
+    # - A custom alias we accept for convience in addition to Bash's 'L' or 'h') - note that `find` also accepts 'l' for its -type primary
+    kCUSTOM_FILE_TEST_OPERATOR_SYMLINK='l'
+    # - A custom alias we accept in addition to Bash's 'S' - but note that that means that we're effectively redefining Bash's 's', which has is-a-non-empty-file semantics.
+    kCUSTOM_FILE_TEST_OPERATOR_SOCKET='s'
+    # - Emptiness (zero bytes or empty dir.) expressed *positively* - the inverse of Bash's 's' operator (for files);
+    #   note that 'e' is Bash's *existence* operator, but since use of that operator by this utility makes no sense - 
+    #   by definition only existing items are examined - we're free to repurpose it here.
+    kCUSTOM_FILE_TEST_OPERATOR_EMPTY='e'
+
 
     # Split into positive and negative filters, if specified.
-    declare allFilterChars=${filterExpr//^/} posFilterChars= negFilterChars= 
-    if [[ "$filterExpr" == "$allFilterChars" ]]; then # no negation operator present -> only positive filters
+    (( $(charInstanceCount '^' "$filterExpr") <= 1 )) || { errMsg='You may only specify ^, the negation operator, once.'; break; }
+    declare posFilterChars negFilterChars
+    IFS=^ read -r posFilterChars negFilterChars <<<"$filterExpr"
 
-      posFilterChars=$filterExpr
+    # Map our CUSTOM OPERATORS onto their Bash equivalents.
+    # - 'l' -> 'L' - simple mapping
+    posFilterChars=${posFilterChars//$kCUSTOM_FILE_TEST_OPERATOR_SYMLINK/L}
+    negFilterChars=${negFilterChars//$kCUSTOM_FILE_TEST_OPERATOR_SYMLINK/L}
+    # - 's' -> 'S' - simple mapping 
+    posFilterChars=${posFilterChars//$kCUSTOM_FILE_TEST_OPERATOR_SOCKET/S}
+    negFilterChars=${negFilterChars//$kCUSTOM_FILE_TEST_OPERATOR_SOCKET/S}
+    # - In the case of 'e', it gets more complicated, because 'e' is the *inverse* of 's',
+    #   so we must map *and* move between negative and positive filters:
+    #   'e' -> '^s' and '^e' -> 's'
+    declare lenBefore
+    if [[ ${posFilterChars/$kCUSTOM_FILE_TEST_OPERATOR_EMPTY/} != "$posFilterChars" ]]; then
+      lenBefore=${#posFilterChars}
+      posFilterChars=${posFilterChars//$kCUSTOM_FILE_TEST_OPERATOR_EMPTY/}
+      (( lenBefore - ${#posFilterChars} == 1 )) || { errMsg='Filter expression contains duplicate filters.'; break; }
+      negFilterChars+='s'
+    fi
+    if [[ ${negFilterChars/$kCUSTOM_FILE_TEST_OPERATOR_EMPTY/} != "$negFilterChars" ]]; then
+      lenBefore=${#negFilterChars}
+      negFilterChars=${negFilterChars//$kCUSTOM_FILE_TEST_OPERATOR_EMPTY/}
+      (( lenBefore - ${#negFilterChars} == 1 )) || { errMsg='Filter expression contains duplicate filters.'; break; }
+      posFilterChars+='s'
+    fi
 
-    else # negation operator present -> both positive and negative filters
-
-      (( ${#filterExpr} - ${#allFilterChars} == 1 )) || { errMsg='You may only specify ^, the negation operator, once.'; break; }
-      # Split the filters into positives (pre-'^') and negatives (post-'^')
-      posFilterChars=${filterExpr%^*}
-      negFilterChars=${filterExpr#*^}
-      # Make sure that there's no overlap between the positive and the negative filters
-      # which would invariably match nothing; e.g., "d^d"
-      if [[ -n $posFilterChars && -n $negFilterChars ]]; then
-        [[ -z $(intersection "$posFilterChars" "$negFilterChars" "") ]] || { errMsg='A filter cannot be its own negation.'; break; }
-      fi
-
+    # Make sure that there's no overlap between the positive and the negative filters
+    # which would invariably match nothing; e.g., "d^d"
+    if [[ -n $posFilterChars && -n $negFilterChars ]]; then
+      [[ -z $(intersection "$posFilterChars" "$negFilterChars" "") ]] || { errMsg='A filter cannot be its own negation.'; break; }
     fi
 
     # See if 's', the nonempty files/dirs filter was specified: 
@@ -365,24 +382,29 @@ if (( ! unfiltered )); then
     # Make sure that an actual filter was specified, and not just the negation operator, ^.
     [[ -z $posFilterChars && -z $negFilterChars ]] && (( haveEmptyItemsFilter == 0 && haveNonEmptyItemsFilter == 0 )) && { errMsg='You cannot use ^ by itself.'; break; }
 
-    # Read the operator chars. into arrays.
+    # Read the operator chars. into character *arrays*.
     declare -a posFileTestOps=() negFileTestOps=()
     [[ -n $posFilterChars ]] && IFS=$'\n' read -d '' -ra posFileTestOps <<<"$(awk 'BEGIN { FS="" } { for(i=1;i<=NF;++i) print $i  }' <<<"$posFilterChars")"
     [[ -n $negFilterChars ]] && IFS=$'\n' read -d '' -ra negFileTestOps <<<"$(awk 'BEGIN { FS="" } { for(i=1;i<=NF;++i) print $i  }' <<<"$negFilterChars")"
     allFileTestOps=( "${posFileTestOps[@]}" "${negFileTestOps[@]}" )
 
     # Make sure that filters aren't specified more than once.
-    hasDuplicateChars "$allFilterChars" || ( isIn 'h' "${allFileTestOps[@]}" && isIn 'L' "${allFileTestOps[@]}" ) && { errMsg='Filter expression contains duplicate filters.'; break; }
+    hasDuplicateChars "${posFilterChars}${negFilterChars}" || ( isIn 'h' "${allFileTestOps[@]}" && isIn 'L' "${allFileTestOps[@]}" ) && { errMsg='Filter expression contains duplicate filters.'; break; }
 
     # Make sure that:
     # - no unknown operators were specified 
     for char in "${allFileTestOps[@]}"; do
+      case $char in
+        $kCUSTOM_FILE_TEST_OPERATOR_SYMLINK)
+
+          ;;
+      esac
       isIn "$char" "${kFILE_TEST_OPERATORS[@]}" || { errMsg="Unknown or unsupported filter: '$char'"; break 2; }
     done
 
     # Make sure that:
     # - among the positive test operators, at most *one* fundamental type is specified (e.g, EITHER 'f' OR 'd', as both doesn't make sense)
-    #   (among the negative filters, it makes at least hypothetical sense to exclude multiple types, such as `^cp` to exclude items that are NEITHER a character-special file NOR a named pipe)
+    #   (among the negative filters, it does make sense to exclude multiple types, such as `^cp` to exclude items that are NEITHER a character-special file NOR a named pipe)
     declare -i typeCount=0
     for char in "${posFileTestOps[@]}"; do
       isIn "$char" "${kFILE_TEST_OPERATORS_TYPES[@]}" && (( ++typeCount ))
@@ -651,11 +673,12 @@ A type-filtering wrapper around the standard `ls` utility.
 
     f       file or symlink to file
     d       dir or symlink to dir
-    L       symlink
+    l       symlink
     x       executable file / searchable dir. (by you)
+    e       empty file (zero bytes) or empty dir. (no files or subdirs.)
 
 Filters are combined with logical AND, and filters placed after `^` are negated.  
-E.g., `fls fx^L` lists executable files that aren't symlinks.
+E.g., `fls fx^l` lists executable files that aren't symlinks.
 
 ## DESCRIPTION
 
@@ -718,40 +741,67 @@ indicating an error condition.
     When in doubt, use `-d` explicitly.
 
   * `<filter>`  
-    A string of one or more filter characters, optionally grouped by negation.  
+    A filter expression to apply to the set of input files an subdirs so that  
+    only items matching the filter are output.  
+    A filter expression is composed of a string of one or more filters, each  
+    of which is represented by a single character detailed in the next chapter.  
     AND logic is implicitly applied to multiple filters; i.e., matching items  
     must meet ALL criteria.  
-    A `^` preceding one or more characters negates their logic; only one `^`  
+    A `^` preceding one or more filters negates their logic; only one `^`  
     is allowed.  
     Specifying just `--` explicitly indicates that *no* filtering should be  
     performed at all.
 
-    Filter characters correspond to Bash's file-test operators; common ones  
-    are listed below; for the full list, see CONDITIONAL EXPRESSIONS in  
-    `man bash`.
+## FILTERS
 
-    * `f, d`  
-      match a file / directory; note that for symlinks the type of their  
-      *target* is matched.  
-    
-    * `x`  
-      matches an executable file or searchable directory; add `f` or `d` to
-      distinguish.
+Individual filters are characters that are a subset of the type-identifying  
+chars. accepted by `find`'s `-type` primary and Bash's file-test  
+operators, with some custom modifications and extensions, where noted.
 
-    * `L` or `h`  
-      matches a symlink. Add `f` or `d` to distinguish between symlinks to  
-      files and those to directories.  
-      Use `L^fdbcpS` to find broken symlinks.
+Note that with the exception of `l`, all tests are applied to the targets of  
+symlinks, not the symlinks themselves.
 
-    * `s`  
-      matches a nonempty file (nonzero-byte file) or nonempty directory  
-      Add `f` or `d` to distinguish. Note: bash's `-s` test operator only  
-      operates meaningfully on files, not directories, but this utility  
-      extends the "nonempty" semantics to refer to directories that contain  
-      at least one item (whether hidden or not).
+### TYPE Filters
 
-    * `r`, `w`  
-      match a file or directory that the current user can read / write.
+  * `f` matches a regular file.
+
+  * `d` matches a directory.
+
+  * `l` matches a symlink; add `f` or `d` to distinguish between symlinks to  
+    files and those to directories; see the TIPS chapter for how to find  
+    broken symlinks.  
+    NOTE: The equivalent Bash operators are `L` or `h`, which are also  
+    accepted.
+
+  * `b`, `c`, `p`, `s` match a block special file, character special file,  
+    a named pipe (FIFO), and a socket, respectively.  
+    NOTE: Bash uses `S` to test for a socket, and `s` to test for nonempty  
+    files; this utility instead uses `e` to test for emptiness - see below.  
+    `S` is, however, also accepted by this utility to test for sockets.
+  
+### ATTRIBUTE Filters
+
+  * `x` matches a file that the current user can execute or a directory that  
+    the current user can search; add `f` or `d` to distinguish.
+
+  * `e` matches an empty file (zero bytes) or empty directory; add `f` or `d`  
+    to distinguish. A directory is only considered empty if it truly contains  
+    no items, whether hidden or not.  
+    NOTE: Bash offers operator `-s`, which uses opposite semantics (test for  
+    non-emptiness) and applies to files only; using `s` that way is NOT  
+    supported by this utility, because it clashes with using `s` to test for  
+    a socket, but you can use `f^e` to emulate it.
+
+  * `r`, `w` matches a file or directory that the current user can read / write.
+
+The following, less common Bash filters are supported as well:
+   
+  * `u` matches if the item's set-user-id permissions bit is set.
+  * `g` matches if the item's set-group-id permissions bit is set.
+  * `k` matches if the item's sticky permissions bit is set.
+  * `G` matches if the item is owned by the effective group ID.
+  * `N` matches if the item has been modified since it was last read.
+  * `O` matches if the item is owned by the effective user ID.
 
 ## TIPS
 
@@ -766,6 +816,10 @@ return only the hidden items; e.g.:
     fls f .*  # show hidden files
     fls d .*  # show hidden subdirs.
 
+To find broken (dangling) symlinks, use:
+
+    fls l^fdbcps
+
 Since remembering filter characters can be a challenge, you can define  
 aliases; e.g.:
 
@@ -773,7 +827,7 @@ aliases; e.g.:
     alias lsexe='fls xf'  # list executables
     alias lsln='fls L'    # list symlinks
 
-The following alias wraps `fls` with a set of useful `ls` options, such as
+The following alias wraps `fls` with a set of useful `ls` options, such as  
 including hidden items and using human-friendly file sizes:
 
     alias lsx='fls -FAhl' # fls with useful ls options baked in
@@ -798,23 +852,23 @@ For license information and more, visit the home page by running
     fls d /
 
       # List all symlinks to files in the current dir.
-    fls Lf
+    fls lf
 
       # List all executable files matching c* in /usr/local/bin
     fls xf /usr/local/bin/c*
 
       # List all empty (zero bytes) files in the current dir.
-    fls f^s
+    fls fe
 
       # List all empty subdirs. in the current dir.
-    fls d^s
+    fls de
 
       # Find broken symlinks in the current dir.
-    fls L^fdbcpS
+    fls l^fdbcps
 
       # Use without filters.
-    fls           # same as ls
-    fls -lt ~     # same as ls -lt ~
-    fls -lt -- ~  # ditto, explicitly requesting unfiltered output
+    fls         # same as ls
+    fls -lt ~   # same as ls -lt ~
+    fls -- pg   # same as ls pg, -- unambiguously marks pg as file operand
 
 EOF_MAN_PAGE

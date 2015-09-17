@@ -10,7 +10,7 @@ PATH=${PWD%%/test*}/bin:$PATH
 
 # Symlinks, whether to a file or dir.
 echo "Symlinks, whether to a file or dir or dead:"
-diff <(fls L ../.fixtures/testdir) - <<EOF || exit
+diff <(fls l ../.fixtures/testdir) - <<EOF || exit
 dead-symlink
 onel
 subdl
@@ -18,12 +18,18 @@ EOF
 
 # Symlinks to *files*.
 echo "Symlinks to files:"
-diff <(fls Lf ../.fixtures/testdir) - <<EOF || exit
+diff <(fls lf ../.fixtures/testdir) - <<EOF || exit
 onel
 EOF
 
 # Symlinks to *dirs*.
 echo "Symlinks to dirs.:"
-diff <(fls Ld ../.fixtures/testdir) - <<EOF || exit
+diff <(fls ld ../.fixtures/testdir) - <<EOF || exit
 subdl
 EOF
+
+# Equivalence of l, L, and h
+echo "l is the same as L:"
+diff <(fls l ../.fixtures/testdir) <(fls L ../.fixtures/testdir) || exit
+echo "l is the same as h:"
+diff <(fls l ../.fixtures/testdir) <(fls h ../.fixtures/testdir) || exit

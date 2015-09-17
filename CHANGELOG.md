@@ -4,6 +4,12 @@ Versioning complies with [semantic versioning (semver)](http://semver.org/).
 
 <!-- NOTE: An entry template for a new version is automatically added each time `make version` is called. Fill in changes afterwards. -->
 
+* **[v0.3.0](https://github.com/mklement0/fls/compare/v0.2.3...v0.3.0)** (2015-09-17):
+  * [BREAKING CHANGES] Filter characters streamlined to be (a) all-lowercase (`l` now accepted in addition to `L` and `h`),
+    `s` in addition to `S`; (b) new filter `e` for testing emptiness added, which supersedes the previous `s` filter with _opposite_ semantics.
+    `s` now means test for a socket, and what was previously `s` (non-emptiness test) can now be expressed more intuitively as
+    `^e` (negated emptiness test), and, conversely, a simple `e` tests for emptiness rather than the obsolete double-negative `^s`.
+
 * **[v0.2.3](https://github.com/mklement0/fls/compare/v0.2.2...v0.2.3)** (2015-09-16):
   * [doc] man page improvements.
 

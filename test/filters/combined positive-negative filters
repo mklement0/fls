@@ -8,22 +8,19 @@
 # ---
 PATH=${PWD%%/test*}/bin:$PATH
 
-# Files (f) that are not (^) non-empty (s) (i.e., that *are* empty).
-echo "Files that are not nonempty (are empty):"
-diff <(fls f^s ../.fixtures/testdir) - <<'EOF' || exit
+echo "Files that are empty:"
+diff <(fls fe ../.fixtures/testdir) - <<'EOF' || exit
 c
 two (2)
 EOF
 
-# Files (f) that are nonempty (s), but not (^) symlinks.
 echo "Files that are nonempty and not symlinks:"
-diff <(fls fs^L ../.fixtures/testdir) - <<'EOF' || exit
+diff <(fls f^el ../.fixtures/testdir) - <<'EOF' || exit
 one
 EOF
 
-# Files or folders that are nonempty (s), but neither files (f) nor symlinks (L)
 echo "Items that are nonempty and neither files nor symlinks:"
-diff <(fls s^fL ../.fixtures/testdir) - <<'EOF' || exit
+diff <(fls ^efl ../.fixtures/testdir) - <<'EOF' || exit
 subd
 EOF
 

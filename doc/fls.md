@@ -13,11 +13,12 @@ A type-filtering wrapper around the standard `ls` utility.
 
     f       file or symlink to file
     d       dir or symlink to dir
-    L       symlink
+    l       symlink
     x       executable file / searchable dir. (by you)
+    e       empty file (zero bytes) or empty dir. (no files or subdirs.)
 
 Filters are combined with logical AND, and filters placed after `^` are negated.  
-E.g., `fls fx^L` lists executable files that aren't symlinks.
+E.g., `fls fx^l` lists executable files that aren't symlinks.
 
 ## DESCRIPTION
 
@@ -80,40 +81,67 @@ indicating an error condition.
     When in doubt, use `-d` explicitly.
 
   * `<filter>`  
-    A string of one or more filter characters, optionally grouped by negation.  
+    A filter expression to apply to the set of input files an subdirs so that  
+    only items matching the filter are output.  
+    A filter expression is composed of a string of one or more filters, each  
+    of which is represented by a single character detailed in the next chapter.  
     AND logic is implicitly applied to multiple filters; i.e., matching items  
     must meet ALL criteria.  
-    A `^` preceding one or more characters negates their logic; only one `^`  
+    A `^` preceding one or more filters negates their logic; only one `^`  
     is allowed.  
     Specifying just `--` explicitly indicates that *no* filtering should be  
     performed at all.
 
-    Filter characters correspond to Bash's file-test operators; common ones  
-    are listed below; for the full list, see CONDITIONAL EXPRESSIONS in  
-    `man bash`.
+## FILTERS
 
-    * `f, d`  
-      match a file / directory; note that for symlinks the type of their  
-      *target* is matched.  
-    
-    * `x`  
-      matches an executable file or searchable directory; add `f` or `d` to
-      distinguish.
+Individual filters are characters that are a subset of the type-identifying  
+chars. accepted by `find`'s `-type` primary and Bash's file-test  
+operators, with some custom modifications and extensions, where noted.
 
-    * `L` or `h`  
-      matches a symlink. Add `f` or `d` to distinguish between symlinks to  
-      files and those to directories.  
-      Use `L^fdbcpS` to find broken symlinks.
+Note that with the exception of `l`, all tests are applied to the targets of  
+symlinks, not the symlinks themselves.
 
-    * `s`  
-      matches a nonempty file (nonzero-byte file) or nonempty directory  
-      Add `f` or `d` to distinguish. Note: bash's `-s` test operator only  
-      operates meaningfully on files, not directories, but this utility  
-      extends the "nonempty" semantics to refer to directories that contain  
-      at least one item (whether hidden or not).
+### TYPE Filters
 
-    * `r`, `w`  
-      match a file or directory that the current user can read / write.
+  * `f` matches a regular file.
+
+  * `d` matches a directory.
+
+  * `l` matches a symlink; add `f` or `d` to distinguish between symlinks to  
+    files and those to directories; see the TIPS chapter for how to find  
+    broken symlinks.  
+    NOTE: The equivalent Bash operators are `L` or `h`, which are also  
+    accepted.
+
+  * `b`, `c`, `p`, `s` match a block special file, character special file,  
+    a named pipe (FIFO), and a socket, respectively.  
+    NOTE: Bash uses `S` to test for a socket, and `s` to test for nonempty  
+    files; this utility instead uses `e` to test for emptiness - see below.  
+    `S` is, however, also accepted by this utility to test for sockets.
+  
+### ATTRIBUTE Filters
+
+  * `x` matches a file that the current user can execute or a directory that  
+    the current user can search; add `f` or `d` to distinguish.
+
+  * `e` matches an empty file (zero bytes) or empty directory; add `f` or `d`  
+    to distinguish. A directory is only considered empty if it truly contains  
+    no items, whether hidden or not.  
+    NOTE: Bash offers operator `-s`, which uses opposite semantics (test for  
+    non-emptiness) and applies to files only; using `s` that way is NOT  
+    supported by this utility, because it clashes with using `s` to test for  
+    a socket, but you can use `f^e` to emulate it.
+
+  * `r`, `w` matches a file or directory that the current user can read / write.
+
+The following, less common Bash filters are supported as well:
+   
+  * `u` matches if the item's set-user-id permissions bit is set.
+  * `g` matches if the item's set-group-id permissions bit is set.
+  * `k` matches if the item's sticky permissions bit is set.
+  * `G` matches if the item is owned by the effective group ID.
+  * `N` matches if the item has been modified since it was last read.
+  * `O` matches if the item is owned by the effective user ID.
 
 ## TIPS
 
@@ -128,6 +156,10 @@ return only the hidden items; e.g.:
     fls f .*  # show hidden files
     fls d .*  # show hidden subdirs.
 
+To find broken (dangling) symlinks, use:
+
+    fls l^fdbcps
+
 Since remembering filter characters can be a challenge, you can define  
 aliases; e.g.:
 
@@ -135,7 +167,7 @@ aliases; e.g.:
     alias lsexe='fls xf'  # list executables
     alias lsln='fls L'    # list symlinks
 
-The following alias wraps `fls` with a set of useful `ls` options, such as
+The following alias wraps `fls` with a set of useful `ls` options, such as  
 including hidden items and using human-friendly file sizes:
 
     alias lsx='fls -FAhl' # fls with useful ls options baked in
@@ -160,22 +192,22 @@ For license information and more, visit the home page by running
     fls d /
 
       # List all symlinks to files in the current dir.
-    fls Lf
+    fls lf
 
       # List all executable files matching c* in /usr/local/bin
     fls xf /usr/local/bin/c*
 
       # List all empty (zero bytes) files in the current dir.
-    fls f^s
+    fls fe
 
       # List all empty subdirs. in the current dir.
-    fls d^s
+    fls de
 
       # Find broken symlinks in the current dir.
-    fls L^fdbcpS
+    fls l^fdbcps
 
       # Use without filters.
-    fls           # same as ls
-    fls -lt ~     # same as ls -lt ~
-    fls -lt -- ~  # ditto, explicitly requesting unfiltered output
+    fls         # same as ls
+    fls -lt ~   # same as ls -lt ~
+    fls -- pg   # same as ls pg, -- unambiguously marks pg as file operand
 

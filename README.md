@@ -23,7 +23,8 @@
 `fls` &mdash; ***f***iltering ***ls*** &mdash; is a **type-filtering wrapper** for the standard **`ls`** Unix utility.
 
 The general idea is to **enhance `ls` with the ability to filter items by filesystem type** by specifying a filter expression as the first argument.  
-A filter expression is composed of **one or more optionally negatable filter characters based on [Bash's file-test operators](http://www.gnu.org/software/bash/manual/html_node/Bash-Conditional-Expressions.html)**, such as `f` for files, `d` for directories, and `L` for symlinks.
+A filter expression is composed of **one or more optionally negatable filter characters based on the type-identifying chars. supported by [`find`'s `-type` primary](http://www.gnu.org/software/findutils/manual/html_node/find_html/Type.html#Type) and [Bash's file-test operators](http://www.gnu.org/software/bash/manual/html_node/Bash-Conditional-Expressions.html)**,  
+such as `f` for files, `d` for directories.
 
 Behind the scenes `ls` is ultimately invoked, so all of its options are supported.  
 Specifying a filter is optional, so `fls` can generally be used in lieu of `ls`, with a few restrictions detailed in the [manual](doc/fls.md).
@@ -36,11 +37,11 @@ The following example lists only subdirectories in the current directory, in lon
 
 * `alias lsbin='fls fx'`
 
-A general `ls` replacement with fixed options, to which you may optionally pass filters as the first operand:
+This alias can serve as a general `ls` replacement with fixed options, to which you may optionally pass filters as the first operand:
 
 * `alias lsx='fls -FAhl'`
 
-See examples below and complete [usage information](#usage) further below.
+See examples below, read concise [usage information](#usage) further below, or read the [manual](doc/fls.md).
 
 # Examples
 
@@ -52,20 +53,21 @@ fls f
 fls d ~
 
 # List all symlinks to hidden files in long format in the user's home dir.
-fls Lf -l ~/.*
+fls lf -l ~/.*
 
 # List all executable files matching c* in /usr/local/bin
 fls xf /usr/local/bin/c*
 
-# List all empty (zero-byte) files in the current dir.
-fls f^s
+# List all empty (zero bytes) files in the current dir.
+fls fe
 
 # List all empty directories in the current dir, most recent one first.
-fls d^s -t
+fls de -t
 
 # Use without filters:
-fls        # same as ls
-fls -lt ~  # same as ls -lt ~
+fls           # same as ls
+fls -lt ~     # same as ls -lt ~
+fls -lt -- pg # same as lf -lt pg; -- unambiguously marks 'pg' as file operand
 ```
 
 # Installation
@@ -102,7 +104,6 @@ Find concise usage information below; for complete documentation, read the [manu
 ```nohighlight
 $ fls --help
 
-
 A type-filtering wrapper around the standard ls utility.
 
     fls [<filter>] [<options-for-ls>] [<dir>]
@@ -112,11 +113,12 @@ A type-filtering wrapper around the standard ls utility.
 
     f       file or symlink to file
     d       dir or symlink to dir
-    L       symlink
+    l       symlink
     x       executable file / searchable dir. (by you)
+    e       empty file (zero bytes) or empty dir. (no files or subdirs.)
 
 Filters are combined with logical AND, and filters placed after ^ are negated.  
-E.g., fls fx^L lists executable files that aren't symlinks.
+E.g., fls fx^l lists executable files that aren't symlinks.
 ```
 
 <!-- DO NOT EDIT THE NEXT CHAPTER and RETAIN THIS COMMENT: The next chapter is updated by `make update-readme/release` with the contents of 'LICENSE.md'. ALSO, LEAVE AT LEAST 1 BLANK LINE AFTER THIS COMMENT. -->
@@ -150,6 +152,12 @@ This project gratefully depends on the following open-source components, accordi
 Versioning complies with [semantic versioning (semver)](http://semver.org/).
 
 <!-- NOTE: An entry template for a new version is automatically added each time `make version` is called. Fill in changes afterwards. -->
+
+* **[v0.3.0](https://github.com/mklement0/fls/compare/v0.2.3...v0.3.0)** (2015-09-17):
+  * [BREAKING CHANGES] Filter characters streamlined to be (a) all-lowercase (`l` now accepted in addition to `L` and `h`),
+    `s` in addition to `S`; (b) new filter `e` for testing emptiness added, which supersedes the previous `s` filter with _opposite_ semantics.
+    `s` now means test for a socket, and what was previously `s` (non-emptiness test) can now be expressed more intuitively as
+    `^e` (negated emptiness test), and, conversely, a simple `e` tests for emptiness rather than the obsolete double-negative `^s`.
 
 * **[v0.2.3](https://github.com/mklement0/fls/compare/v0.2.2...v0.2.3)** (2015-09-16):
   * [doc] man page improvements.
