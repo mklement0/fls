@@ -4,7 +4,7 @@
 
 kTHIS_HOMEPAGE='https://github.com/mklement0/fls'
 kTHIS_NAME=${BASH_SOURCE##*/}
-kTHIS_VERSION='v0.2.2' # NOTE: This assignment is automatically updated by `make version VER=<newVer>` - DO keep the 'v' prefix.
+kTHIS_VERSION='v0.2.3' # NOTE: This assignment is automatically updated by `make version VER=<newVer>` - DO keep the 'v' prefix.
 
 unset CDPATH  # To prevent unexpected `cd` behavior.
 
@@ -642,7 +642,7 @@ fi
 
 ## SYNOPSIS
 
-A type-filtering wrapper for the standard ls utility.
+A type-filtering wrapper around the standard `ls` utility.
 
     fls [<filter>] [<options-for-ls>] [<dir>]
     fls [<filter>] [<options-for-ls>] <fileOrDir>...
@@ -654,7 +654,7 @@ A type-filtering wrapper for the standard ls utility.
     L       symlink
     x       executable file / searchable dir. (by you)
 
-Filters are combined with AND, and filters placed after `^` are negated.  
+Filters are combined with logical AND, and filters placed after `^` are negated.  
 E.g., `fls fx^L` lists executable files that aren't symlinks.
 
 ## DESCRIPTION
@@ -670,7 +670,7 @@ NOTE: For simplicity, this utility is limited to filtering items from a
  * Or: as the result of globbing on the command line, by specifying multiple  
    items all from the same parent directory to filter *themselves*.  
    Unlike with `ls`, matching items are always printed by filename only, with  
-   a path component, if any, removed.
+   the path component, if any, removed.
 
 To allow use of a single utility in both filtering and non-filtering  
 scenarios, specifying a filter is optional and not specifying one makes  
@@ -703,7 +703,7 @@ indicating an error condition.
     A single directory whose items (files and subdirectories) to filter;  
     defaults to `.` (the current directory).
   
-  * `<fileOrDir>...`
+  * `<fileOrDir>...`  
     A list of files and/or subdirectories from a *single* parent directory  
     to which to apply filtering *directly*.  
     Typically, this list will come from pathname expansion (globbing) on the  
@@ -717,7 +717,7 @@ indicating an error condition.
     had been explicitly specified - it cannot tell the difference.  
     When in doubt, use `-d` explicitly.
 
-  * `<filter>`
+  * `<filter>`  
     A string of one or more filter characters, optionally grouped by negation.  
     AND logic is implicitly applied to multiple filters; i.e., matching items  
     must meet ALL criteria.  
@@ -745,7 +745,7 @@ indicating an error condition.
 
     * `s`  
       matches a nonempty file (nonzero-byte file) or nonempty directory  
-      Add f or d to distinguish. Note: bash's -s test operator only  
+      Add `f` or `d` to distinguish. Note: bash's `-s` test operator only  
       operates meaningfully on files, not directories, but this utility  
       extends the "nonempty" semantics to refer to directories that contain  
       at least one item (whether hidden or not).
@@ -803,10 +803,10 @@ For license information and more, visit the home page by running
       # List all executable files matching c* in /usr/local/bin
     fls xf /usr/local/bin/c*
 
-      # List all empty (zero-byte) files in the current dir.
+      # List all empty (zero bytes) files in the current dir.
     fls f^s
 
-      # List all empty directories in the current dir.
+      # List all empty subdirs. in the current dir.
     fls d^s
 
       # Find broken symlinks in the current dir.

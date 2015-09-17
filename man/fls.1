@@ -1,9 +1,9 @@
-.TH "FLS" "1" "September 2015" "v0.2.2" ""
+.TH "FLS" "1" "September 2015" "v0.2.3" ""
 .SH "NAME"
 \fBfls\fR \- type\-filtering wrapper around ls
 .SH SYNOPSIS
 .P
-A type\-filtering wrapper for the standard ls utility\.
+A type\-filtering wrapper around the standard \fBls\fP utility\.
 .P
 .RS 2
 .nf
@@ -23,7 +23,7 @@ x       executable file / searchable dir\. (by you)
 .fi
 .RE
 .P
-Filters are combined with AND, and filters placed after \fB^\fP are negated\.
+Filters are combined with logical AND, and filters placed after \fB^\fP are negated\.
 .br
 E\.g\., \fBfls fx^L\fP lists executable files that aren't symlinks\.
 .SH DESCRIPTION
@@ -47,7 +47,7 @@ items all from the same parent directory to filter \fIthemselves\fR\|\.
 .br
 Unlike with \fBls\fP, matching items are always printed by filename only, with
 .br
-a path component, if any, removed\.
+the path component, if any, removed\.
 
 .RE
 .P
@@ -101,6 +101,7 @@ A single directory whose items (files and subdirectories) to filter;
 defaults to \fB\|\.\fP (the current directory)\.
 .IP \(bu 2
 \fB<fileOrDir>\.\.\.\fP
+.br
 A list of files and/or subdirectories from a \fIsingle\fR parent directory
 .br
 to which to apply filtering \fIdirectly\fR\|\.
@@ -126,6 +127,7 @@ had been explicitly specified \- it cannot tell the difference\.
 When in doubt, use \fB\-d\fP explicitly\.
 .IP \(bu 2
 \fB<filter>\fP
+.br
 A string of one or more filter characters, optionally grouped by negation\.
 .br
 AND logic is implicitly applied to multiple filters; i\.e\., matching items
@@ -169,7 +171,7 @@ Use \fBL^fdbcpS\fP to find broken symlinks\.
 .br
 matches a nonempty file (nonzero\-byte file) or nonempty directory
 .br
-Add f or d to distinguish\. Note: bash's \-s test operator only
+Add \fBf\fP or \fBd\fP to distinguish\. Note: bash's \fB\-s\fP test operator only
 .br
 operates meaningfully on files, not directories, but this utility
 .br
@@ -254,10 +256,10 @@ fls Lf
   # List all executable files matching c* in /usr/local/bin
 fls xf /usr/local/bin/c*
 
-  # List all empty (zero\-byte) files in the current dir\.
+  # List all empty (zero bytes) files in the current dir\.
 fls f^s
 
-  # List all empty directories in the current dir\.
+  # List all empty subdirs\. in the current dir\.
 fls d^s
 
   # Find broken symlinks in the current dir\.

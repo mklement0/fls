@@ -103,7 +103,7 @@ Find concise usage information below; for complete documentation, read the [manu
 $ fls --help
 
 
-A type-filtering wrapper for the standard ls utility.
+A type-filtering wrapper around the standard ls utility.
 
     fls [<filter>] [<options-for-ls>] [<dir>]
     fls [<filter>] [<options-for-ls>] <fileOrDir>...
@@ -115,7 +115,7 @@ A type-filtering wrapper for the standard ls utility.
     L       symlink
     x       executable file / searchable dir. (by you)
 
-Filters are combined with AND, and filters placed after ^ are negated.  
+Filters are combined with logical AND, and filters placed after ^ are negated.  
 E.g., fls fx^L lists executable files that aren't symlinks.
 ```
 
@@ -150,6 +150,9 @@ This project gratefully depends on the following open-source components, accordi
 Versioning complies with [semantic versioning (semver)](http://semver.org/).
 
 <!-- NOTE: An entry template for a new version is automatically added each time `make version` is called. Fill in changes afterwards. -->
+
+* **[v0.2.3](https://github.com/mklement0/fls/compare/v0.2.2...v0.2.3)** (2015-09-16):
+  * [doc] man page improvements.
 
 * **[v0.2.2](https://github.com/mklement0/fls/compare/v0.2.1...v0.2.2)** (2015-09-16):
   * [doc] `fls` now has a man page, and `-h` outputs concise usage information only.
