@@ -1,0 +1,272 @@
+.TH "FLS" "1" "September 2015" "v0.2.2" ""
+.SH "NAME"
+\fBfls\fR \- type\-filtering wrapper around ls
+.SH SYNOPSIS
+.P
+A type\-filtering wrapper for the standard ls utility\.
+.P
+.RS 2
+.nf
+fls [<filter>] [<options\-for\-ls>] [<dir>]
+fls [<filter>] [<options\-for\-ls>] <fileOrDir>\.\.\.
+.fi
+.RE
+.P
+\fB<filter>\fP is a string of filter characters; commonly used are:
+.P
+.RS 2
+.nf
+f       file or symlink to file
+d       dir or symlink to dir
+L       symlink
+x       executable file / searchable dir\. (by you)
+.fi
+.RE
+.P
+Filters are combined with AND, and filters placed after \fB^\fP are negated\.
+.br
+E\.g\., \fBfls fx^L\fP lists executable files that aren't symlinks\.
+.SH DESCRIPTION
+.P
+\fBfls\fP is a wrapper around the \fBls\fP utility that enables listing filesystem
+.br
+items filtered by type\.
+.P
+NOTE: For simplicity, this utility is limited to filtering items from a
+.br
+\fIsingle\fR directory:
+.RS 0
+.IP \(bu 2
+Either: by specifying a single directory (the current one by default)
+.br
+whose \fIcontent\fR to filter\.
+.IP \(bu 2
+Or: as the result of globbing on the command line, by specifying multiple
+.br
+items all from the same parent directory to filter \fIthemselves\fR\|\.
+.br
+Unlike with \fBls\fP, matching items are always printed by filename only, with
+.br
+a path component, if any, removed\.
+
+.RE
+.P
+To allow use of a single utility in both filtering and non\-filtering
+.br
+scenarios, specifying a filter is optional and not specifying one makes
+.br
+\fBfls\fP behave like \fBls\fP, within the constraints noted\.
+.P
+For convenience and to facilitate definition of aliases, the filter may be
+.br
+placed before or after the options to pass to \fBls\fP, if any\.
+.br
+A first operand that is not a valid filter is considered a file operand
+.br
+instead\. If what you intended as a filter is treated as a (non\-existent)
+.br
+file instead, the implicication is that the filter is invalid; to see the
+.br
+specific reason, specify the filter unambiguously, by:
+.RS 0
+.IP \(bu 2
+either: placing it before options; e\.g\.: \fBfls d \-l [\.\.\.]\fP  
+.IP \(bu 2
+or: following it with \fB\-\-\fP; e\.g\.: \fBfls \-l d \-\- [\.\.\.]\fP  
+
+.RE
+.P
+Conversely, to explicitly request unfiltered output, use \fB\-\-\fP
+.br
+as the first operand; e\.g\.: \fBfls \-\- [\.\.\.]\fP  
+.P
+The exit code is 0, as long as all file operands exist and can be examined\.
+.br
+Thus, a filter that matches nothing simply produces no output, without
+.br
+indicating an error condition\.
+.SH OPTIONS AND OPERANDS
+.RS 0
+.IP \(bu 2
+\fB<options\-for\-ls>\fP
+.br
+Options to pass through to \fBls\fP, such as \fB\-l\fP to list in long format;
+.br
+see \fBman ls\fP\|\.
+.IP \(bu 2
+\fB<dir>\fP
+.br
+A single directory whose items (files and subdirectories) to filter;
+.br
+defaults to \fB\|\.\fP (the current directory)\.
+.IP \(bu 2
+\fB<fileOrDir>\.\.\.\fP
+A list of files and/or subdirectories from a \fIsingle\fR parent directory
+.br
+to which to apply filtering \fIdirectly\fR\|\.
+.br
+Typically, this list will come from pathname expansion (globbing) on the
+.br
+command line\.
+.br
+Note that, unlike with \fBls\fP, option \fB\-d\fP is implictly in effect for
+.br
+multiple operands; that is, (sub)directories among the operands are always
+.br
+filtered and printed as themselves, and their content is neither examined
+.br
+nor printed\.
+.br
+CAVEAT: If a glob happens to expand to a \fIsingle directory\fR, this utility
+.br
+will instead target that directory's \fIcontent\fR, as if a single directory
+.br
+had been explicitly specified \- it cannot tell the difference\.
+.br
+When in doubt, use \fB\-d\fP explicitly\.
+.IP \(bu 2
+\fB<filter>\fP
+A string of one or more filter characters, optionally grouped by negation\.
+.br
+AND logic is implicitly applied to multiple filters; i\.e\., matching items
+.br
+must meet ALL criteria\.
+.br
+A \fB^\fP preceding one or more characters negates their logic; only one \fB^\fP
+.br
+is allowed\.
+.br
+Specifying just \fB\-\-\fP explicitly indicates that \fIno\fR filtering should be
+.br
+performed at all\.
+Filter characters correspond to Bash's file\-test operators; common ones
+.br
+are listed below; for the full list, see CONDITIONAL EXPRESSIONS in
+.br
+\fBman bash\fP\|\.
+.RS 0
+.IP \(bu 2
+\fBf, d\fP
+.br
+match a file / directory; note that for symlinks the type of their
+.br
+\fItarget\fR is matched\.  
+.IP \(bu 2
+\fBx\fP
+.br
+matches an executable file or searchable directory; add \fBf\fP or \fBd\fP to
+distinguish\.
+.IP \(bu 2
+\fBL\fP or \fBh\fP
+.br
+matches a symlink\. Add \fBf\fP or \fBd\fP to distinguish between symlinks to
+.br
+files and those to directories\.
+.br
+Use \fBL^fdbcpS\fP to find broken symlinks\.
+.IP \(bu 2
+\fBs\fP
+.br
+matches a nonempty file (nonzero\-byte file) or nonempty directory
+.br
+Add f or d to distinguish\. Note: bash's \-s test operator only
+.br
+operates meaningfully on files, not directories, but this utility
+.br
+extends the "nonempty" semantics to refer to directories that contain
+.br
+at least one item (whether hidden or not)\.
+.IP \(bu 2
+\fBr\fP, \fBw\fP
+.br
+match a file or directory that the current user can read / write\.
+
+.RE
+
+.RE
+.SH TIPS
+.P
+To include hidden items in the set of items to filter, use \fBls\fP\|'s \fB\-A\fP option;
+.br
+e\.g\.:
+.P
+.RS 2
+.nf
+fls d \-A  # list all subdirs\., including hidden ones
+.fi
+.RE
+.P
+To filter among hidden files or directories only, use glob \fB\|\.*\fP \- this will
+.br
+return only the hidden items; e\.g\.:
+.P
+.RS 2
+.nf
+fls f \.*  # show hidden files
+fls d \.*  # show hidden subdirs\.
+.fi
+.RE
+.P
+Since remembering filter characters can be a challenge, you can define
+.br
+aliases; e\.g\.:
+.P
+.RS 2
+.nf
+alias lsd='fls d'     # list directories
+alias lsexe='fls xf'  # list executables
+alias lsln='fls L'    # list symlinks
+.fi
+.RE
+.P
+The following alias wraps \fBfls\fP with a set of useful \fBls\fP options, such as
+including hidden items and using human\-friendly file sizes:
+.P
+.RS 2
+.nf
+alias lsx='fls \-FAhl' # fls with useful ls options baked in
+.fi
+.RE
+.SH LICENSE
+.P
+For license information and more, visit the home page by running
+.br
+\fBfls \-\-home\fP\|\.
+.SH EXAMPLES
+.P
+.RS 2
+.nf
+  # List all files in the current dir\.
+fls f
+
+  # List all files in the current dir in long format, including hidden ones\.
+fls f \-lA
+
+  # List all hidden files in the current dir\.
+fls f \.*
+
+  # List all subdirs\. of /    
+fls d /
+
+  # List all symlinks to files in the current dir\.
+fls Lf
+
+  # List all executable files matching c* in /usr/local/bin
+fls xf /usr/local/bin/c*
+
+  # List all empty (zero\-byte) files in the current dir\.
+fls f^s
+
+  # List all empty directories in the current dir\.
+fls d^s
+
+  # Find broken symlinks in the current dir\.
+fls L^fdbcpS
+
+  # Use without filters\.
+fls           # same as ls
+fls \-lt ~     # same as ls \-lt ~
+fls \-lt \-\- ~  # ditto, explicitly requesting unfiltered output
+.fi
+.RE
+

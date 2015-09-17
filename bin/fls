@@ -1,12 +1,105 @@
 #!/usr/bin/env bash
 
-declare kTHIS_NAME=${BASH_SOURCE##*/}
-declare kTHIS_HOMEPAGE='https://github.com/mklement0/fls'
+# --- STANDARD SCRIPT-GLOBAL CONSTANTS
 
-# Output version number and exit, if requested. Note that the `ver="..."` statement is automatically updated by `make version VER=<newVer>` - DO keep the 'v' suffix in the variable definition.
-[[ $1 == '--version' ]] && { ver="v0.2.1"; echo "$kTHIS_NAME $ver"$'\nFor license information and more, visit '"$kTHIS_HOMEPAGE"; exit 0; }
+kTHIS_HOMEPAGE='https://github.com/mklement0/fls'
+kTHIS_NAME=${BASH_SOURCE##*/}
+kTHIS_VERSION='v0.2.2' # NOTE: This assignment is automatically updated by `make version VER=<newVer>` - DO keep the 'v' prefix.
 
-unset CDPATH  # to prevent unexpected `cd` behavior
+unset CDPATH  # To prevent unexpected `cd` behavior.
+
+# --- Begin: STANDARD HELPER FUNCTIONS
+
+die() { echo "$kTHIS_NAME: ERROR: ${1:-"ABORTING due to unexpected error."}" 1>&2; exit ${2:-1}; }
+dieSyntax() { echo "$kTHIS_NAME: ARGUMENT ERROR: ${1:-"Invalid argument(s) specified."} Use -h for help." 1>&2; exit 2; }
+
+# SYNOPSIS
+#   openUrl <url>
+# DESCRIPTION
+#   Opens the specified URL in the system's default browser.
+openUrl() {
+  local url=$1 platform=$(uname) cmd=()
+  case $platform in
+    'Darwin') # OSX
+      cmd=( open "$url" )
+      ;;
+    'CYGWIN_'*) # Cygwin on Windows; must call cmd.exe with its `start` builtin
+      cmd=( cmd.exe /c start '' "$url " )  # !! Note the required trailing space.
+      ;;
+    'MINGW32_'*) # MSYS or Git Bash on Windows; they come with a Unix `start` binary
+      cmd=( start '' "$url" )
+      ;;
+    *) # Otherwise, assume a Freedesktop-compliant OS, which includes many Linux distros, PC-BSD, OpenSolaris, ...
+      cmd=( xdg-open "$url" )
+      ;; 
+  esac
+  "${cmd[@]}" || { echo "Cannot locate or failed to open default browser; please go to '$url' manually." >&2; return 1; }
+}
+
+# Prints the embedded Markdown-formatted man-page source to stdout.
+printManPageSource() {
+  sed -n -e $'/^: <<\'EOF_MAN_PAGE\'/,/^EOF_MAN_PAGE/ { s///; t\np;}' "$BASH_SOURCE"
+}
+
+# Opens the man page, if installed; otherwise, tries to display the embedded Markdown-formatted man-page source; if all else fails: tries to display the man page online.
+openManPage() {
+  local pager embeddedText 
+  if ! man 1 "$kTHIS_NAME" 2>/dev/null; then
+    # 2nd attempt: if present, display the embedded Markdown-formatted man-page source
+    embeddedText=$(printManPageSource)
+    if [[ -n $embeddedText ]]; then
+      pager='more'
+      command -v less &>/dev/null && pager='less' # see if the non-standard `less` is available, because it's preferable to the POSIX utility `more`
+      printf '%s\n' "$embeddedText" | "$pager"
+    else # 3rd attempt: open the the man page on the utility's website
+      openUrl "${kTHIS_HOMEPAGE}/doc/${kTHIS_NAME}.md"
+    fi
+  fi  
+}
+
+# Prints the contents of the synopsis chapter of the embedded Markdown-formatted man-page source for quick reference.
+printUsage() {
+  local embeddedText
+  # Extract usage information from the SYNOPSIS chapter of the embedded Markdown-formatted man-page source.
+  embeddedText=$(sed -n -e $'/^: <<\'EOF_MAN_PAGE\'/,/^EOF_MAN_PAGE/!d; /^## SYNOPSIS$/,/^#/{ s///; t\np; }' "$BASH_SOURCE")
+  if [[ -n $embeddedText ]]; then
+    # Print extracted synopsis chapter - remove backticks for uncluttered display.
+    printf '%s\n\n' "$embeddedText" | tr -d '`'
+  else # No SYNOPIS chapter found; fall back to displaying the man page.
+    echo "WARNING: usage information not found; opening man page instead." >&2
+    openManPage
+  fi
+}
+
+# --- End: STANDARD HELPER FUNCTIONS
+
+# ---  PROCESS STANDARD, OUTPUT-INFO-THEN-EXIT OPTIONS.
+case $1 in
+  --version)
+    # Output version number and exit, if requested.
+    echo "$kTHIS_NAME $kTHIS_VERSION"$'\nFor license information and more, visit '"$kTHIS_HOMEPAGE"; exit 0
+    ;;
+  -h|--help)
+    # Print usage information and exit.
+    # !! -h is a valid option for ls that we normally must pass through, 
+    # !! so we accept it as an alias for --help ONLY if
+    # !! it's the only argument; we can do this, because -h by itself
+    # !! makes no sense in ls (it must be combined with -l).
+    (( $# == 1 )) && { printUsage; exit; }
+    ;;
+  --man)
+    # Display the manual page and exit, falling back to printing the embedded man-page source.
+    openManPage; exit
+    ;;
+  --man-source) # private option, used by `make update-man`
+    # Print raw, embedded Markdown-formatted man-page source and exit
+    printManPageSource; exit
+    ;;
+  --home)
+    # Open the home page and exit.
+    openUrl "$kTHIS_HOMEPAGE"; exit
+    ;;
+esac
 
 # --- BEGIN: Functions
 
@@ -119,139 +212,7 @@ isNonEmpty() {
 
 # --- END: Functions
 
-# Command-line help.
-# !! -h is a valid option for ls that we normally must pass through, 
-# !! so we accept it as an alias for --help
-# !! ONLY if it's the only argument; we can do this, because -h by itself
-# !! makes no sense in ls (it must be combined with -l).
-if [[ $1 == '--help' || ($1 == '-h' && $# -eq 1) ]]; then
-  cat <<EOF
-SYNOPSIS
-  $kTHIS_NAME [filter] [options-for-ls] [dir]
-  $kTHIS_NAME [filter] [options-for-ls] fileOrDir...
-
-DESCRIPTION
-  A type-filtering wrapper for the ls utility.
-
-  NOTE: For simplicity, this utility is limited to filtering items from a 
-  *single directory*:
-   - Either by specifying a single directory (the current one by default)
-     whose *content* to filter.
-   - Or, as the result of globbing on the command line, by specifying multiple
-     items *all from the same parent directory* to filter *themselves*.
-     Unlike with ls, matching items are always printed by filename only, with
-     a path component, if any, removed.
-  Also, to allow use of a single utility in both filtering and non-filtering
-  scenarios, specifying a filter is *optional* and not specifying one makes
-  $kTHIS_NAME behave like ls, within the constraints noted.
-
-  options-for-ls
-    Options to pass through to ls, such as -l to list in long format.
-
-  dir
-    A *single* directory whose items (files and subdirectories) to filter;
-    defaults to . (the current directory).
-  
-  fileOrDir...
-    A list of files and/or subdirectories *from a single parent directory*
-    to which to apply filtering *directly*.
-    Typically, this list will come from a pathname expansion (globbing)
-    on the command line.
-    Note that, unlike with ls, option -d is implictly for multiple operands; 
-    that is, (sub)directories among the operands are always filtered and
-    printed as themselves, and their content is neither examined nor printed.
-    CAVEAT: If a glob happens to expand to a *single directory*, this utility
-    will instead target that directory's *content*, as if a single directory
-    had been explicitly specified - it cannot tell the difference.
-    When in doubt, use -d explicitly.
-
-  filter
-    A string of one or more filter characters, optionally grouped by negation.
-    AND logic is implicitly applied to multiple filters; i.e., matching items
-    must meet ALL criteria.
-    A ^ preceding one or more characters negates their logic; only one ^
-    is allowed.
-    Specifying just '--' explicitly indicates that *no* filtering should be
-    performed at all.
-
-    For convenience and to facilitate definition of aliases, the filter may be
-    placed before or after the options to pass to ls, if any.
-    A first operand that is not a valid filter is considered a file operand
-    instead. If what you intended as a filter is treated as a (non-existent)
-    file instead, the implicication is that the filter is invalid; to see the
-    specific reason, specify the filter unambiguously as such, by:
-     - either: placing it before options; e.g.: $kTHIS_NAME d -l [...]
-     - or: following it with '--'; e.g.: $kTHIS_NAME -l d -- [...]
-    Conversely, to explicitly request unfiltered output, use '--'
-    as the first operand; e.g.: $kTHIS_NAME -- [...]
-
-    Filter characters correspond to *Bash's file-test operators*; common ones
-    are listed below; for the full list, see CONDITIONAL EXPRESSIONS in
-    \`man bash\`.
-
-    f, d
-      Matches a file / directory; note that for symlinks the type of their
-      *target* is matched.
-      Caveat: This means that if a symlink points to a non-existing target,
-      neither filter will match it; only L by itself will output such symlinks.
-    
-    x
-      Matches an executable file or searchable directory; add f or d to
-      distinguish.
-
-    L or h
-      Matches a symlink. Add f or d to distinguish between symlinks to
-      files and those to directories.
-
-    s
-      Matches a nonempty file (nonzero-byte file) or nonempty directory
-      Add f or d to distinguish. Note: bash's -s test operator only
-      operates meaningfully on files, not directories, but this utility
-      extends the "nonempty" semantics to refer to directories that contain
-      at least one item (whether hidden or not).
-
-    r, w
-      Matches a file or directory that the current user can read, write.
-
-  To filter *hidden* files or directories, use glob .* - this will return only
-  the hidden items, to which you can then apply further filtering; e.g.,
-    $kTHIS_NAME f .*  # show hidden files
-    $kTHIS_NAME d .*  # show hidden subdirs.
-
-  Since remembering the filter characters can be a challenge, you can define
-  *aliases*; e.g.:
-    alias lsd='$kTHIS_NAME d'     # list directories
-    alias lsexe='$kTHIS_NAME xf'  # list executables
-    alias lsln='$kTHIS_NAME L'    # list symlinks
-
-  The exit code is 0, as long as all file operands exist and can be examined.
-  Thus, a filter that matches nothing simply produces no output, without 
-  indicating an error condition.
-
-EXAMPLES
-    # List all files in the current dir.
-  $kTHIS_NAME f
-    # List all files in the current dir in long format, including hidden ones.
-  $kTHIS_NAME f -lA
-    # List all hidden files in the current dir.
-  $kTHIS_NAME f .*
-    # List all subdirs. of /    
-  $kTHIS_NAME d /
-    # List all symlinks to files in the current dir.
-  $kTHIS_NAME Lf
-    # List all executable files matching c* in /usr/local/bin
-  $kTHIS_NAME xf /usr/local/bin/c*
-    # List all empty (zero-byte) files in the current dir.
-  $kTHIS_NAME f^s
-    # List all empty directories in the current dir.
-  $kTHIS_NAME d^s
-    # Use without filters:
-  $kTHIS_NAME           # same as ls
-  $kTHIS_NAME -lt ~     # same as ls -lt ~
-  $kTHIS_NAME -lt -- ~  # ditto, explicitly requesting unfiltered output
-EOF
-    exit 0
-fi
+# --- MAIN BODY
 
 declare filterExpr= firstArgWasOperand=0 unambiguousFilter=0 unfiltered=0 includeHidden=0 includeDotAndDotDot=0 listDirItself=0
 
@@ -362,7 +323,7 @@ if (( ! unfiltered )); then
            # -N ... file has been modified since it was last read
            # -O ... owned by the effective user ID
            # -S ... a socket.
-    # The fundamental filesystem types, except symlinks (a symlink may be point to any of these types)
+    # The fundamental filesystem types, except symlinks (a symlink may be pointing to any of these types)
     # Among the *positive* filters, only *one* of these makes sense.
     kFILE_TEST_OPERATORS_TYPES=( f d b c p S )
     # The symlink ID chars.
@@ -541,7 +502,7 @@ else # *multiple* file operands given - typically the result of globbing on the 
     #       want `ls` to report errors about them - see below.
     f=${f%/} # trim trailing '/'
     filename=${f##*/}  # extract *mere filename*
-    pathPrefix=${f%$filename}
+    pathPrefix=${f%"$filename"} # !! Note the double-quoting of $filename to ensure treatment as literal.
     [[ $i -eq 0 || "$prevPathPrefix" == "$pathPrefix" ]] || dieSyntax "If you specify multiple file operands, they must all have the same parent directory."
     candidateFiles+=( "$filename" )  # Add the *mere filename* to the list of candidate files.
     prevPathPrefix=$pathPrefix
@@ -632,3 +593,228 @@ if (( ${#files[@]} > 0 )); then
 else
   : # no matches; do nothing and exit successfully, as `ls` would in an empty dir.
 fi
+
+
+####
+# MAN PAGE MARKDOWN SOURCE
+#  - Place a Markdown-formatted version of the man page for this script
+#    inside the here-document below.
+#    The document must be formatted to look good in all 3 viewing scenarios:
+#     - as a man page, after conversion to ROFF with marked-man
+#     - as plain text (raw Markdown source)
+#     - as HTML (rendered Markdown)
+#  Markdown formatting tips:
+#   - GENERAL
+#     To support plain-text rendering in the terminal, limit all lines to 80 chars.,
+#     and, for similar rendering as HTML, *end every line with 2 trailing spaces*.
+#   - HEADINGS
+#     - For better plain-text rendering, leave an empty line after a heading
+#       marked-man will remove it from the ROFF version.
+#     - The first heading must be a level-1 heading containing the utility
+#       name and very brief description; append the manual-section number 
+#       directly to the CLI name; e.g.:
+#         # foo(1) - does bar
+#     - The 2nd, level-2 heading must be '## SYNOPSIS' and the chapter's body
+#       must render reasonably as plain text, because it is printed to stdout
+#       when  `-h`, `--help` is specified:
+#         Use 4-space indentation without markup for both the syntax line and the
+#         block of brief option descriptions; represent option-arguments and operands
+#         in angle brackets; e.g., '<foo>'
+#     - All other headings should be level-2 headings in ALL-CAPS.
+#   - TEXT
+#      - Use NO indentation for regular chapter text; if you do, it will 
+#        be indented further than list items.
+#      - Use 4-space indentation, as usual, for code blocks.
+#      - Markup character-styling markup translates to ROFF rendering as follows:
+#         `...` and **...** render as bolded (red) text
+#         _..._ and *...* render as word-individually underlined text
+#   - LISTS
+#      - Indent list items by 2 spaces for better plain-text viewing, but note
+#        that the ROFF generated by marked-man still renders them unindented.
+#      - End every list item (bullet point) itself with 2 trailing spaces too so
+#        that it renders on its own line.
+#      - Avoid associating more than 1 paragraph with a list item, if possible,
+#        because it requires the following trick, which hampers plain-text readability:
+#        Use '&nbsp;<space><space>' in lieu of an empty line.
+####
+: <<'EOF_MAN_PAGE'
+# fls(1) - type-filtering wrapper around ls
+
+## SYNOPSIS
+
+A type-filtering wrapper for the standard ls utility.
+
+    fls [<filter>] [<options-for-ls>] [<dir>]
+    fls [<filter>] [<options-for-ls>] <fileOrDir>...
+
+`<filter>` is a string of filter characters; commonly used are:
+
+    f       file or symlink to file
+    d       dir or symlink to dir
+    L       symlink
+    x       executable file / searchable dir. (by you)
+
+Filters are combined with AND, and filters placed after `^` are negated.  
+E.g., `fls fx^L` lists executable files that aren't symlinks.
+
+## DESCRIPTION
+
+`fls` is a wrapper around the `ls` utility that enables listing filesystem  
+items filtered by type.
+
+NOTE: For simplicity, this utility is limited to filtering items from a  
+*single* directory:
+
+ * Either: by specifying a single directory (the current one by default)  
+   whose *content* to filter.
+ * Or: as the result of globbing on the command line, by specifying multiple  
+   items all from the same parent directory to filter *themselves*.  
+   Unlike with `ls`, matching items are always printed by filename only, with  
+   a path component, if any, removed.
+
+To allow use of a single utility in both filtering and non-filtering  
+scenarios, specifying a filter is optional and not specifying one makes  
+`fls` behave like `ls`, within the constraints noted.
+
+For convenience and to facilitate definition of aliases, the filter may be  
+placed before or after the options to pass to `ls`, if any.  
+A first operand that is not a valid filter is considered a file operand  
+instead. If what you intended as a filter is treated as a (non-existent)  
+file instead, the implicication is that the filter is invalid; to see the  
+specific reason, specify the filter unambiguously, by:
+
+ * either: placing it before options; e.g.: `fls d -l [...]`  
+ * or: following it with `--`; e.g.: `fls -l d -- [...]`  
+
+Conversely, to explicitly request unfiltered output, use `--`    
+as the first operand; e.g.: `fls -- [...]`  
+
+The exit code is 0, as long as all file operands exist and can be examined.  
+Thus, a filter that matches nothing simply produces no output, without  
+indicating an error condition.
+
+## OPTIONS AND OPERANDS
+
+  * `<options-for-ls>`  
+    Options to pass through to `ls`, such as `-l` to list in long format;  
+    see `man ls`.
+
+  * `<dir>`  
+    A single directory whose items (files and subdirectories) to filter;  
+    defaults to `.` (the current directory).
+  
+  * `<fileOrDir>...`
+    A list of files and/or subdirectories from a *single* parent directory  
+    to which to apply filtering *directly*.  
+    Typically, this list will come from pathname expansion (globbing) on the  
+    command line.  
+    Note that, unlike with `ls`, option `-d` is implictly in effect for  
+    multiple operands; that is, (sub)directories among the operands are always  
+    filtered and printed as themselves, and their content is neither examined  
+    nor printed.  
+    CAVEAT: If a glob happens to expand to a *single directory*, this utility  
+    will instead target that directory's *content*, as if a single directory  
+    had been explicitly specified - it cannot tell the difference.  
+    When in doubt, use `-d` explicitly.
+
+  * `<filter>`
+    A string of one or more filter characters, optionally grouped by negation.  
+    AND logic is implicitly applied to multiple filters; i.e., matching items  
+    must meet ALL criteria.  
+    A `^` preceding one or more characters negates their logic; only one `^`  
+    is allowed.  
+    Specifying just `--` explicitly indicates that *no* filtering should be  
+    performed at all.
+
+    Filter characters correspond to Bash's file-test operators; common ones  
+    are listed below; for the full list, see CONDITIONAL EXPRESSIONS in  
+    `man bash`.
+
+    * `f, d`  
+      match a file / directory; note that for symlinks the type of their  
+      *target* is matched.  
+    
+    * `x`  
+      matches an executable file or searchable directory; add `f` or `d` to
+      distinguish.
+
+    * `L` or `h`  
+      matches a symlink. Add `f` or `d` to distinguish between symlinks to  
+      files and those to directories.  
+      Use `L^fdbcpS` to find broken symlinks.
+
+    * `s`  
+      matches a nonempty file (nonzero-byte file) or nonempty directory  
+      Add f or d to distinguish. Note: bash's -s test operator only  
+      operates meaningfully on files, not directories, but this utility  
+      extends the "nonempty" semantics to refer to directories that contain  
+      at least one item (whether hidden or not).
+
+    * `r`, `w`  
+      match a file or directory that the current user can read / write.
+
+## TIPS
+
+To include hidden items in the set of items to filter, use `ls`'s `-A` option;  
+e.g.:
+
+    fls d -A  # list all subdirs., including hidden ones
+
+To filter among hidden files or directories only, use glob `.*` - this will  
+return only the hidden items; e.g.:
+
+    fls f .*  # show hidden files
+    fls d .*  # show hidden subdirs.
+
+Since remembering filter characters can be a challenge, you can define  
+aliases; e.g.:
+
+    alias lsd='fls d'     # list directories
+    alias lsexe='fls xf'  # list executables
+    alias lsln='fls L'    # list symlinks
+
+The following alias wraps `fls` with a set of useful `ls` options, such as
+including hidden items and using human-friendly file sizes:
+
+    alias lsx='fls -FAhl' # fls with useful ls options baked in
+
+## LICENSE
+
+For license information and more, visit the home page by running  
+`fls --home`.
+
+## EXAMPLES
+
+      # List all files in the current dir.
+    fls f
+
+      # List all files in the current dir in long format, including hidden ones.
+    fls f -lA
+
+      # List all hidden files in the current dir.
+    fls f .*
+
+      # List all subdirs. of /    
+    fls d /
+
+      # List all symlinks to files in the current dir.
+    fls Lf
+
+      # List all executable files matching c* in /usr/local/bin
+    fls xf /usr/local/bin/c*
+
+      # List all empty (zero-byte) files in the current dir.
+    fls f^s
+
+      # List all empty directories in the current dir.
+    fls d^s
+
+      # Find broken symlinks in the current dir.
+    fls L^fdbcpS
+
+      # Use without filters.
+    fls           # same as ls
+    fls -lt ~     # same as ls -lt ~
+    fls -lt -- ~  # ditto, explicitly requesting unfiltered output
+
+EOF_MAN_PAGE

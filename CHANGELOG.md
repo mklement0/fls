@@ -4,6 +4,10 @@ Versioning complies with [semantic versioning (semver)](http://semver.org/).
 
 <!-- NOTE: An entry template for a new version is automatically added each time `make version` is called. Fill in changes afterwards. -->
 
+* **[v0.2.2](https://github.com/mklement0/fls/compare/v0.2.1...v0.2.2)** (2015-09-16):
+  * [doc] `fls` now has a man page, and `-h` outputs concise usage information only.
+  * [fix] Filenames with backslashes are now handled correctly.
+
 * **[v0.2.1](https://github.com/mklement0/fls/compare/v0.2.0...v0.2.1)** (2015-09-15):
   * [dev] Makefile improvements; various small behind-the-scenes fixes.
 

@@ -26,7 +26,7 @@ The general idea is to **enhance `ls` with the ability to filter items by filesy
 A filter expression is composed of **one or more optionally negatable filter characters based on [Bash's file-test operators](http://www.gnu.org/software/bash/manual/html_node/Bash-Conditional-Expressions.html)**, such as `f` for files, `d` for directories, and `L` for symlinks.
 
 Behind the scenes `ls` is ultimately invoked, so all of its options are supported.  
-Specifying a filter is optional, so `fls` can generally be used in lieu of `ls`, with a few restrictions detailed in the [usage chapter](#usage).
+Specifying a filter is optional, so `fls` can generally be used in lieu of `ls`, with a few restrictions detailed in the [manual](doc/fls.md).
 
 The following example lists only subdirectories in the current directory, in long format:
 
@@ -95,134 +95,28 @@ With [Node.js](http://nodejs.org/) or [io.js](https://iojs.org/) installed, inst
 
 # Usage
 
+Find concise usage information below; for complete documentation, read the [manual online](doc/fls.md), or, once installed, run `man fls` (`fls --man` if installed manually).
+
 <!-- DO NOT EDIT THE FENCED CODE BLOCK and RETAIN THIS COMMENT: The fenced code block below is updated by `make update-readme/release` with CLI usage information. -->
 
 ```nohighlight
 $ fls --help
 
-SYNOPSIS
-  fls [filter] [options-for-ls] [dir]
-  fls [filter] [options-for-ls] fileOrDir...
 
-DESCRIPTION
-  A type-filtering wrapper for the ls utility.
+A type-filtering wrapper for the standard ls utility.
 
-  NOTE: For simplicity, this utility is limited to filtering items from a 
-  *single directory*:
-   - Either by specifying a single directory (the current one by default)
-     whose *content* to filter.
-   - Or, as the result of globbing on the command line, by specifying multiple
-     items *all from the same parent directory* to filter *themselves*.
-     Unlike with ls, matching items are always printed by filename only, with
-     a path component, if any, removed.
-  Also, to allow use of a single utility in both filtering and non-filtering
-  scenarios, specifying a filter is *optional* and not specifying one makes
-  fls behave like ls, within the constraints noted.
+    fls [<filter>] [<options-for-ls>] [<dir>]
+    fls [<filter>] [<options-for-ls>] <fileOrDir>...
 
-  options-for-ls
-    Options to pass through to ls, such as -l to list in long format.
+<filter> is a string of filter characters; commonly used are:
 
-  dir
-    A *single* directory whose items (files and subdirectories) to filter;
-    defaults to . (the current directory).
-  
-  fileOrDir...
-    A list of files and/or subdirectories *from a single parent directory*
-    to which to apply filtering *directly*.
-    Typically, this list will come from a pathname expansion (globbing)
-    on the command line.
-    Note that, unlike with ls, option -d is implictly for multiple operands; 
-    that is, (sub)directories among the operands are always filtered and
-    printed as themselves, and their content is neither examined nor printed.
-    CAVEAT: If a glob happens to expand to a *single directory*, this utility
-    will instead target that directory's *content*, as if a single directory
-    had been explicitly specified - it cannot tell the difference.
-    When in doubt, use -d explicitly.
+    f       file or symlink to file
+    d       dir or symlink to dir
+    L       symlink
+    x       executable file / searchable dir. (by you)
 
-  filter
-    A string of one or more filter characters, optionally grouped by negation.
-    AND logic is implicitly applied to multiple filters; i.e., matching items
-    must meet ALL criteria.
-    A ^ preceding one or more characters negates their logic; only one ^
-    is allowed.
-    Specifying just '--' explicitly indicates that *no* filtering should be
-    performed at all.
-
-    For convenience and to facilitate definition of aliases, the filter may be
-    placed before or after the options to pass to ls, if any.
-    A first operand that is not a valid filter is considered a file operand
-    instead. If what you intended as a filter is treated as a (non-existent)
-    file instead, the implicication is that the filter is invalid; to see the
-    specific reason, specify the filter unambiguously as such, by:
-     - either: placing it before options; e.g.: fls d -l [...]
-     - or: following it with '--'; e.g.: fls -l d -- [...]
-    Conversely, to explicitly request unfiltered output, use '--'
-    as the first operand; e.g.: fls -- [...]
-
-    Filter characters correspond to *Bash's file-test operators*; common ones
-    are listed below; for the full list, see CONDITIONAL EXPRESSIONS in
-    `man bash`.
-
-    f, d
-      Matches a file / directory; note that for symlinks the type of their
-      *target* is matched.
-      Caveat: This means that if a symlink points to a non-existing target,
-      neither filter will match it; only L by itself will output such symlinks.
-    
-    x
-      Matches an executable file or searchable directory; add f or d to
-      distinguish.
-
-    L or h
-      Matches a symlink. Add f or d to distinguish between symlinks to
-      files and those to directories.
-
-    s
-      Matches a nonempty file (nonzero-byte file) or nonempty directory
-      Add f or d to distinguish. Note: bash's -s test operator only
-      operates meaningfully on files, not directories, but this utility
-      extends the "nonempty" semantics to refer to directories that contain
-      at least one item (whether hidden or not).
-
-    r, w
-      Matches a file or directory that the current user can read, write.
-
-  To filter *hidden* files or directories, use glob .* - this will return only
-  the hidden items, to which you can then apply further filtering; e.g.,
-    fls f .*  # show hidden files
-    fls d .*  # show hidden subdirs.
-
-  Since remembering the filter characters can be a challenge, you can define
-  *aliases*; e.g.:
-    alias lsd='fls d'     # list directories
-    alias lsexe='fls xf'  # list executables
-    alias lsln='fls L'    # list symlinks
-
-  The exit code is 0, as long as all file operands exist and can be examined.
-  Thus, a filter that matches nothing simply produces no output, without 
-  indicating an error condition.
-
-EXAMPLES
-    # List all files in the current dir.
-  fls f
-    # List all files in the current dir in long format, including hidden ones.
-  fls f -lA
-    # List all hidden files in the current dir.
-  fls f .*
-    # List all subdirs. of /    
-  fls d /
-    # List all symlinks to files in the current dir.
-  fls Lf
-    # List all executable files matching c* in /usr/local/bin
-  fls xf /usr/local/bin/c*
-    # List all empty (zero-byte) files in the current dir.
-  fls f^s
-    # List all empty directories in the current dir.
-  fls d^s
-    # Use without filters:
-  fls           # same as ls
-  fls -lt ~     # same as ls -lt ~
-  fls -lt -- ~  # ditto, explicitly requesting unfiltered output
+Filters are combined with AND, and filters placed after ^ are negated.  
+E.g., fls fx^L lists executable files that aren't symlinks.
 ```
 
 <!-- DO NOT EDIT THE NEXT CHAPTER and RETAIN THIS COMMENT: The next chapter is updated by `make update-readme/release` with the contents of 'LICENSE.md'. ALSO, LEAVE AT LEAST 1 BLANK LINE AFTER THIS COMMENT. -->
@@ -243,6 +137,7 @@ This project gratefully depends on the following open-source components, accordi
 
 * [doctoc (D)](https://github.com/thlorenz/doctoc)
 * [json (D)](https://github.com/trentm/json)
+* [marked-man (D)](https://github.com/kapouer/marked-man#readme)
 * [replace (D)](https://github.com/harthur/replace)
 * [semver (D)](https://github.com/npm/node-semver#readme)
 * [tap (D)](https://github.com/isaacs/node-tap)
@@ -255,6 +150,10 @@ This project gratefully depends on the following open-source components, accordi
 Versioning complies with [semantic versioning (semver)](http://semver.org/).
 
 <!-- NOTE: An entry template for a new version is automatically added each time `make version` is called. Fill in changes afterwards. -->
+
+* **[v0.2.2](https://github.com/mklement0/fls/compare/v0.2.1...v0.2.2)** (2015-09-16):
+  * [doc] `fls` now has a man page, and `-h` outputs concise usage information only.
+  * [fix] Filenames with backslashes are now handled correctly.
 
 * **[v0.2.1](https://github.com/mklement0/fls/compare/v0.2.0...v0.2.1)** (2015-09-15):
   * [dev] Makefile improvements; various small behind-the-scenes fixes.
