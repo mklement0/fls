@@ -27,11 +27,13 @@ e       empty file (zero bytes) or empty dir\. (no files or subdirs\.)
 Filters are combined with logical AND, and filters placed after \fB^\fP are negated\.
 .br
 E\.g\., \fBfls fx^l\fP lists executable files that aren't symlinks\.
+.P
+Standard options: \fB\-\-help\fP, \fB\-\-man\fP, \fB\-\-version\fP, \fB\-\-home\fP
 .SH DESCRIPTION
 .P
 \fBfls\fP is a wrapper around the \fBls\fP utility that enables listing filesystem
 .br
-items filtered by type\.
+items filtered by type and certain attributes\.
 .P
 NOTE: For simplicity, this utility is limited to filtering items from a
 .br

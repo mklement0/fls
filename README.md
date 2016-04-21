@@ -77,7 +77,7 @@ fls -lt -- pg # same as lf -lt pg; -- unambiguously marks 'pg' as file operand
 * When installing from the **npm registry**: **Linux** and **OSX**
 * When installing **manually**: any **Unix-like** platform with **Bash** 
 
-## From the npm registry
+## Installation from the npm registry
 
 With [Node.js](http://nodejs.org/) or [io.js](https://iojs.org/) installed, install [the package](https://www.npmjs.com/package/fls) as follows:
 

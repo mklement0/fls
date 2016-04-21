@@ -20,10 +20,12 @@ A type-filtering wrapper around the standard `ls` utility.
 Filters are combined with logical AND, and filters placed after `^` are negated.  
 E.g., `fls fx^l` lists executable files that aren't symlinks.
 
+Standard options: `--help`, `--man`, `--version`, `--home`
+
 ## DESCRIPTION
 
 `fls` is a wrapper around the `ls` utility that enables listing filesystem  
-items filtered by type.
+items filtered by type and certain attributes.
 
 NOTE: For simplicity, this utility is limited to filtering items from a  
 *single* directory:
