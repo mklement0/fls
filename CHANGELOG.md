@@ -4,6 +4,9 @@ Versioning complies with [semantic versioning (semver)](http://semver.org/).
 
 <!-- NOTE: An entry template for a new version is automatically added each time `make version` is called. Fill in changes afterwards. -->
 
+* **[v0.3.2](https://github.com/mklement0/fls/compare/v0.3.1...v0.3.2)** (2018-07-26):
+  * [doc] Read-me formatting fixed.
+
 * **[v0.3.1](https://github.com/mklement0/fls/compare/v0.3.0...v0.3.1)** (2018-07-25):
   * [dev] `npm`-package security vulnerabilities fixed - note that these vulnerabilities never affected _runtime_ operation.
 
