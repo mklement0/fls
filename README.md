@@ -8,7 +8,7 @@
 - [fls &mdash; Introduction](#fls-&mdash-introduction)
 - [Examples](#examples)
 - [Installation](#installation)
-  - [From the npm registry](#from-the-npm-registry)
+  - [Installation from the npm registry](#installation-from-the-npm-registry)
   - [Manual installation](#manual-installation)
 - [Usage](#usage)
 - [License](#license)
@@ -104,6 +104,7 @@ Find concise usage information below; for complete documentation, read the [manu
 ```nohighlight
 $ fls --help
 
+
 A type-filtering wrapper around the standard ls utility.
 
     fls [<filter>] [<options-for-ls>] [<dir>]
@@ -119,13 +120,15 @@ A type-filtering wrapper around the standard ls utility.
 
 Filters are combined with logical AND, and filters placed after ^ are negated.  
 E.g., fls fx^l lists executable files that aren't symlinks.
+
+Standard options: --help, --man, --version, --home
 ```
 
 <!-- DO NOT EDIT THE NEXT CHAPTER and RETAIN THIS COMMENT: The next chapter is updated by `make update-readme/release` with the contents of 'LICENSE.md'. ALSO, LEAVE AT LEAST 1 BLANK LINE AFTER THIS COMMENT. -->
 
 # License
 
-Copyright (c) 2015 Michael Klement <mklement0@gmail.com> (http://same2u.net), released under the [MIT license](https://spdx.org/licenses/MIT#licenseText).
+Copyright (c) 2015-2018 Michael Klement <mklement0@gmail.com> (http://same2u.net), released under the [MIT license](https://spdx.org/licenses/MIT#licenseText).
 
 ## Acknowledgements
 
@@ -140,9 +143,9 @@ This project gratefully depends on the following open-source components, accordi
 * [doctoc (D)](https://github.com/thlorenz/doctoc)
 * [json (D)](https://github.com/trentm/json)
 * [marked-man (D)](https://github.com/kapouer/marked-man#readme)
-* [replace (D)](https://github.com/harthur/replace)
+* [replace (D)](https://github.com/ALMaclaine/replace#readme)
 * [semver (D)](https://github.com/npm/node-semver#readme)
-* [tap (D)](https://github.com/isaacs/node-tap)
+* [tap (D)](http://node-tap.org/)
 * [urchin (D)](https://github.com/tlevine/urchin)
 
 <!-- DO NOT EDIT THE NEXT CHAPTER and RETAIN THIS COMMENT: The next chapter is updated by `make update-readme/release` with the contents of 'CHANGELOG.md'. ALSO, LEAVE AT LEAST 1 BLANK LINE AFTER THIS COMMENT. -->
@@ -152,6 +155,9 @@ This project gratefully depends on the following open-source components, accordi
 Versioning complies with [semantic versioning (semver)](http://semver.org/).
 
 <!-- NOTE: An entry template for a new version is automatically added each time `make version` is called. Fill in changes afterwards. -->
+
+* **[v0.3.1](https://github.com/mklement0/fls/compare/v0.3.0...v0.3.1)** (2018-07-25):
+  * [dev] `npm`-package security vulnerabilities fixed - note that these vulnerabilities never affected _runtime_ operation.
 
 * **[v0.3.0](https://github.com/mklement0/fls/compare/v0.2.3...v0.3.0)** (2015-09-17):
   * [BREAKING CHANGES] Filter characters streamlined to be (a) all-lowercase (`l` now accepted in addition to `L` and `h`),
