@@ -5,7 +5,7 @@
 
 **Contents**
 
-- [fls &mdash; Introduction](#fls-&mdash-introduction)
+- [fls &mdash; Introduction](#fls-mdash-introduction)
 - [Examples](#examples)
 - [Installation](#installation)
   - [Installation from the npm registry](#installation-from-the-npm-registry)
@@ -26,7 +26,7 @@ The general idea is to **enhance `ls` with the ability to filter items by filesy
 A filter expression is composed of **one or more optionally negatable filter characters based on the type-identifying chars. supported by [`find`'s `-type` primary](http://www.gnu.org/software/findutils/manual/html_node/find_html/Type.html#Type) and [Bash's file-test operators](http://www.gnu.org/software/bash/manual/html_node/Bash-Conditional-Expressions.html)**,  
 such as `f` for files, `d` for directories.
 
-Behind the scenes `ls` is ultimately invoked, so all of its options are supported.  
+Behind the scenes `ls` is ultimately invoked, so all of its options - except `-R` / `--recursive` - are supported.  
 Specifying a filter is optional, so `fls` can generally be used in lieu of `ls`, with a few restrictions detailed in the [manual](doc/fls.md).
 
 The following example lists only subdirectories in the current directory, in long format:
@@ -140,14 +140,14 @@ This project gratefully depends on the following open-source components, accordi
 
 ## npm dependencies
 
-* [doctoc (D)](https://github.com/thlorenz/doctoc)
-* [json (D)](https://github.com/trentm/json)
+* [doctoc (D)]()
+* [json (D)]()
 * [marked (D)](https://marked.js.org)
-* [marked-man (D)](https://github.com/kapouer/marked-man#readme)
-* [replace (D)](https://github.com/ALMaclaine/replace#readme)
-* [semver (D)](https://github.com/npm/node-semver#readme)
+* [marked-man (D)]()
+* [replace (D)]()
+* [semver (D)]()
 * [tap (D)](http://www.node-tap.org/)
-* [urchin (D)](https://github.com/tlevine/urchin)
+* [urchin (D)]()
 
 <!-- DO NOT EDIT THE NEXT CHAPTER and RETAIN THIS COMMENT: The next chapter is updated by `make update-readme/release` with the contents of 'CHANGELOG.md'. ALSO, LEAVE AT LEAST 1 BLANK LINE AFTER THIS COMMENT. -->
 
@@ -156,6 +156,9 @@ This project gratefully depends on the following open-source components, accordi
 Versioning complies with [semantic versioning (semver)](http://semver.org/).
 
 <!-- NOTE: An entry template for a new version is automatically added each time `make version` is called. Fill in changes afterwards. -->
+
+* **[v0.4.0](https://github.com/mklement0/fls/compare/v0.3.3...v0.4.0)** (2021-08-19):
+  * An attempt to use `ls`'s `-R` / `--recursive` option now causes an error; it was never meaningfully supported.
 
 * **[v0.3.3](https://github.com/mklement0/fls/compare/v0.3.2...v0.3.3)** (2020-01-26):
   * [dev] Updated the (design-time only) npm packages.

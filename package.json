@@ -2,7 +2,7 @@
   "name": "fls",
   "description": "Unix CLI that is a type-filtering wrapper for the standard ls utility.",
   "private": false,
-  "version": "0.3.3",
+  "version": "0.4.0",
   "os": [
     "darwin",
     "linux"
@@ -39,7 +39,7 @@
     }
   },
   "devDependencies": {
-    "doctoc": "^0.13.0",
+    "doctoc": "^2.0.1",
     "json": "^10.0.0",
     "marked": "^0.8.0",
     "marked-man": "^0.7.0",

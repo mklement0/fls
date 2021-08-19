@@ -1,4 +1,4 @@
-.TH "FLS" "1" "January 2020" "v0.3.3" ""
+.TH "FLS" "1" "August 2021" "v0.4.0" ""
 .SH "NAME"
 \fBfls\fR \- type\-filtering wrapper around ls
 .SH SYNOPSIS
@@ -94,7 +94,14 @@ indicating an error condition\.
 .br
 Options to pass through to \fBls\fP, such as \fB\-l\fP to list in long format;
 .br
-see \fBman ls\fP\|\.
+see \fBman ls\fP\|\.  
+Note: Given that this utility is limited to targeting files from a \fIsingle\fR  
+.P
+.RS 2
+.nf
+  directory, `ls`'s `\-R` / `\-\-recursive` option is *not* supported\.
+.fi
+.RE
 .IP \(bu 2
 \fB<dir>\fP
 .br

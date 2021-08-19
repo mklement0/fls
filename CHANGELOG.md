@@ -4,6 +4,9 @@ Versioning complies with [semantic versioning (semver)](http://semver.org/).
 
 <!-- NOTE: An entry template for a new version is automatically added each time `make version` is called. Fill in changes afterwards. -->
 
+* **[v0.4.0](https://github.com/mklement0/fls/compare/v0.3.3...v0.4.0)** (2021-08-19):
+  * An attempt to use `ls`'s `-R` / `--recursive` option now causes an error; it was never meaningfully supported.
+
 * **[v0.3.3](https://github.com/mklement0/fls/compare/v0.3.2...v0.3.3)** (2020-01-26):
   * [dev] Updated the (design-time only) npm packages.
 

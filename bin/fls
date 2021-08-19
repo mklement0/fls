@@ -4,7 +4,7 @@
 
 kTHIS_HOMEPAGE='https://github.com/mklement0/fls'
 kTHIS_NAME=${BASH_SOURCE##*/}
-kTHIS_VERSION='v0.3.3' # NOTE: This assignment is automatically updated by `make version VER=<newVer>` - DO keep the 'v' prefix.
+kTHIS_VERSION='v0.4.0' # NOTE: This assignment is automatically updated by `make version VER=<newVer>` - DO keep the 'v' prefix.
 
 unset CDPATH  # To prevent unexpected `cd` behavior.
 
@@ -244,6 +244,9 @@ while (( $# )); do
             ;;
           d|directory)
             listDirItself=1
+            ;;
+          R|recursive)
+            dieSyntax "ls' -R / --recursive option is not supported."
             ;;
         esac
         # ---- END: CUSTOMIZE HERE
@@ -722,7 +725,9 @@ indicating an error condition.
 
   * `<options-for-ls>`  
     Options to pass through to `ls`, such as `-l` to list in long format;  
-    see `man ls`.
+    see `man ls`.  
+    Note: Given that this utility is limited to targeting files from a *single*  
+          directory, `ls`'s `-R` / `--recursive` option is *not* supported.
 
   * `<dir>`  
     A single directory whose items (files and subdirectories) to filter;  

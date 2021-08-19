@@ -62,7 +62,9 @@ indicating an error condition.
 
   * `<options-for-ls>`  
     Options to pass through to `ls`, such as `-l` to list in long format;  
-    see `man ls`.
+    see `man ls`.  
+    Note: Given that this utility is limited to targeting files from a *single*  
+          directory, `ls`'s `-R` / `--recursive` option is *not* supported.
 
   * `<dir>`  
     A single directory whose items (files and subdirectories) to filter;  
