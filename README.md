@@ -26,7 +26,7 @@ The general idea is to **enhance `ls` with the ability to filter items by filesy
 A filter expression is composed of **one or more optionally negatable filter characters based on the type-identifying chars. supported by [`find`'s `-type` primary](http://www.gnu.org/software/findutils/manual/html_node/find_html/Type.html#Type) and [Bash's file-test operators](http://www.gnu.org/software/bash/manual/html_node/Bash-Conditional-Expressions.html)**,  
 such as `f` for files, `d` for directories.
 
-Behind the scenes `ls` is ultimately invoked, so all of its options - except `-R` / `--recursive` - are supported.  
+Behind the scenes `ls` is ultimately invoked, so all of its options - except `-R` / `--recursive`, `--ignore`, `-f` and `-U` - are supported.  
 Specifying a filter is optional, so `fls` can generally be used in lieu of `ls`, with a few restrictions detailed in the [manual](doc/fls.md).
 
 The following example lists only subdirectories in the current directory, in long format:
